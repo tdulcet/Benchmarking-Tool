@@ -22,6 +22,10 @@ RUNS=''
 COMMANDS=(
 
 )
+# Command name(s)
+NAMES=(
+
+)
 
 # Prepare command(s) to execute before each run
 PREPARE=(
@@ -102,6 +106,8 @@ Options:
                         Export the timing summary statistics as CSV to the given FILE.
     -j <FILE>       Export JSON
                         Export the timing summary statistics and timings of individual runs as JSON to the given FILE.
+    -n <NAME>       Command-name
+                        Give a meaningful name to a command.
     -h              Display this help and exit
     -v              Output version information and exit
 
@@ -137,7 +143,7 @@ if [[ $# -eq 0 ]]; then
 	exit 1
 fi
 
-while getopts "c:hij:m:p:r:suvw:C:M:" c; do
+while getopts "c:hij:m:n:p:r:suvw:C:M:" c; do
 	case ${c} in
 	c )
 		CLEANUP=$OPTARG
@@ -154,6 +160,9 @@ while getopts "c:hij:m:p:r:suvw:C:M:" c; do
 	;;
 	m )
 		MINRUNS=$OPTARG
+	;;
+	n )
+		NAMES+=( "$OPTARG" )
 	;;
 	p )
 		PREPARE+=( "$OPTARG" )
@@ -290,7 +299,7 @@ modified_zscores() {
 	x_median=$(median "$@")
 	deviations=( $(printf '%s\n' "$@" | awk 'function abs(x) { return x<0 ? -x : x } { printf "%.15g\n", abs($1 - '"$x_median"') }') )
 	mad=$(median "${deviations[@]}")
-	printf '%s\n' "$@" | awk 'function abs(x) { return x<0 ? -x : x } BEGIN { mad='"$mad"'; if(mad==0) mad=10^-308 } { printf "%.15g\n", abs(($1 - '"$x_median"') / mad) }'
+	printf '%s\n' "$@" | awk 'BEGIN { mad='"$mad"'; if(mad==0) mad=10^-308 } { printf "%.15g\n", ($1 - '"$x_median"') / mad }'
 }
 
 # Run preparation command
@@ -343,6 +352,13 @@ if [[ ${#PREPARE[*]} -gt 1 && ${#COMMANDS[*]} -ne ${#PREPARE[*]} ]]; then
 	echo "Error: The prepare option has to be provided just once or N times, where N is the number of benchmark commands." >&2
 	exit 1
 fi
+
+if [[ ${#NAMES[*]} -gt ${#COMMANDS[*]} ]]; then
+	echo "Error: Too many command-name options: expected ${#COMMANDS[*]} at most." >&2
+	exit 1
+fi
+
+NAMES+=( "${COMMANDS[@]:${#NAMES[*]}}" )
 
 if [[ -n "$MINRUNS" && ! $MINRUNS =~ $RE ]]; then
 	echo "Usage: The minimum number of runs must be a number" >&2
@@ -414,7 +430,7 @@ for i in "${!COMMANDS[@]}"; do
 	
 	RUNS=$MINRUNS
 	
-	printf "${BOLD}Benchmark #%'d${NC}: %s\n" "$((i+1))" "${COMMANDS[i]}"
+	printf "${BOLD}Benchmark #%'d${NC}: %s\n" "$((i+1))" "${NAMES[i]}"
 	
 	if [[ $WARMUP -gt 0 ]]; then
 		if [[ -n "$INTERACTIVE" ]]; then
@@ -510,7 +526,7 @@ for i in "${!COMMANDS[@]}"; do
 	fi
 
 	if [[ -n "$CSV" ]]; then
-		printf '%s,%s,%s,%s,%s,%s,%s,%s\n' "${COMMANDS[i]}" "$amean" "$stddiv" "$amedian" "$usermean" "$systemmean" "$min" "$max" >> "$CSV"
+		printf '%s,%s,%s,%s,%s,%s,%s,%s\n' "${NAMES[i]}" "$amean" "$stddiv" "$amedian" "$usermean" "$systemmean" "$min" "$max" >> "$CSV"
 	fi
 	if [[ -n "$JSON" ]]; then
 		{
@@ -527,7 +543,7 @@ for i in "${!COMMANDS[@]}"; do
       "system": %s,
       "min": %s,
       "max": %s,
-      "times": [\n' "${COMMANDS[i]}" "$amean" "$stddiv" "$amedian" "$usermean" "$systemmean" "$min" "$max"
+      "times": [\n' "${NAMES[i]}" "$amean" "$stddiv" "$amedian" "$usermean" "$systemmean" "$min" "$max"
 			printf '        %s,\n' "${ELAPSED[@]::${#ELAPSED[*]}-1}"
 			printf '        %s
       ]
@@ -548,7 +564,7 @@ for i in "${!COMMANDS[@]}"; do
 	scores=( $(modified_zscores "${ELAPSED[@]}") )
 	if (( $(echo "${scores[0]} $OUTLIERTHRESHOLD" | awk '{ print ($1>$2) }') )); then
 		warning "The first benchmarking run for this command was significantly slower than the rest (${ELAPSED[0]}s). This could be caused by (filesystem) caches that were not filled until after the first run. You should consider using the warmup option to fill those caches before the actual benchmark. Alternatively, use the prepare option to clear the caches before each timing run."
-	elif (( output=$(printf '%s\n' "${scores[@]}" | awk '$1>'"$OUTLIERTHRESHOLD"' { ++t } END { printf "%d", t }') )); then
+	elif (( output=$(printf '%s\n' "${scores[@]}" | awk 'function abs(x) { return x<0 ? -x : x } abs($1)>'"$OUTLIERTHRESHOLD"' { ++t } END { printf "%d", t }') )); then
 		warning "$output statistical outlier(s) were detected (> $OUTLIERTHRESHOLD modified Z-scores or about 10${UNICODE:+σ} std devs). Consider re-running this benchmark on a quiet system without any interferences from other programs. It might help to use the warmup or prepare options."
 	fi
 	# printf '%s\n' "${scores[@]}"
@@ -572,9 +588,9 @@ if [[ ${#MEAN[*]} -gt 1 ]]; then
 	
 	echo -e "${BOLD}Summary${NC}"
 	if [[ -z "$UNICODE" ]]; then
-		printf "  #%'d '${CYAN}%s${NC}' ran\n" "$((fastest+1))" "${COMMANDS[fastest]}"
+		printf "  #%'d '${CYAN}%s${NC}' ran\n" "$((fastest+1))" "${NAMES[fastest]}"
 	else
-		printf "  #%'d ‘${CYAN}%s${NC}’ ran\n" "$((fastest+1))" "${COMMANDS[fastest]}"
+		printf "  #%'d ‘${CYAN}%s${NC}’ ran\n" "$((fastest+1))" "${NAMES[fastest]}"
 	fi
 	
 	for i in "${!MEAN[@]}"; do
@@ -582,9 +598,9 @@ if [[ ${#MEAN[*]} -gt 1 ]]; then
 			array=( $(ratio_stddev "${MEAN[i]}" "${STDDIV[i]}" "${MEAN[fastest]}" "${STDDIV[fastest]}") )
 			
 			if [[ -z "$UNICODE" ]]; then
-				printf "${GREEN}${BOLD}%9.3f${NC} +- ${GREEN}%.3f${NC} times (%'.1f%%) faster than #%'d '${MAGENTA}%s${NC}'\n" "${array[0]/./$decimal_point}" "${array[1]/./$decimal_point}" "${array[2]/./$decimal_point}" "$((i+1))" "${COMMANDS[i]}"
+				printf "${GREEN}${BOLD}%9.3f${NC} +- ${GREEN}%.3f${NC} times (%'.1f%%) faster than #%'d '${MAGENTA}%s${NC}'\n" "${array[0]/./$decimal_point}" "${array[1]/./$decimal_point}" "${array[2]/./$decimal_point}" "$((i+1))" "${NAMES[i]}"
 			else
-				printf "${GREEN}${BOLD}%9.3f${NC} ± ${GREEN}%.3f${NC} times (%'.1f%%) faster than #%'d ‘${MAGENTA}%s${NC}’\n" "${array[0]/./$decimal_point}" "${array[1]/./$decimal_point}" "${array[2]/./$decimal_point}" "$((i+1))" "${COMMANDS[i]}"
+				printf "${GREEN}${BOLD}%9.3f${NC} ± ${GREEN}%.3f${NC} times (%'.1f%%) faster than #%'d ‘${MAGENTA}%s${NC}’\n" "${array[0]/./$decimal_point}" "${array[1]/./$decimal_point}" "${array[2]/./$decimal_point}" "$((i+1))" "${NAMES[i]}"
 			fi
 		fi
 	done

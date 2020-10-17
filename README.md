@@ -14,6 +14,7 @@ A port of the [hyperfine](https://github.com/sharkdp/hyperfine) Benchmarking Too
 Please visit [tealdulcet.com](https://www.tealdulcet.com/) to support this script and my other software development.
 
 ![](images/screenshot.png)
+Benchmark of the GNU [factor](https://www.gnu.org/software/coreutils/manual/html_node/factor-invocation.html) and uutils [factor](https://github.com/uutils/coreutils) commands.
 
 Also see the [Testing and Benchmarking](https://github.com/tdulcet/Testing-and-Benchmarking-Scripts) scripts.
 
@@ -57,6 +58,8 @@ Options:
                         Export the timing summary statistics as CSV to the given FILE.
     -j <FILE>       Export JSON
                         Export the timing summary statistics and timings of individual runs as JSON to the given FILE.
+    -n <NAME>       Command-name
+                        Give a meaningful name to a command.
     -h              Display this help and exit
     -v              Output version information and exit
 
