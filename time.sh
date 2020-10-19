@@ -306,7 +306,7 @@ modified_zscores() {
 # prepare <commands index>
 prepare() {
 	if [[ ${#PREPARE[*]} -gt 0 ]]; then
-		output=$(eval "${PREPARE[${#PREPARE[*]} > 1 ? $1 : 0]}" >/dev/null 2>&1)
+		output=$(eval "${PREPARE[${#PREPARE[*]} > 1 ? $1 : 0]}" <&- >/dev/null 2>&1)
 		E=$?
 		if (( E )); then
 			if [[ -n "$INTERACTIVE" ]]; then
@@ -324,7 +324,7 @@ run() {
 	
 	prepare "$i"
 	
-	output=$(TIMEFORMAT='%R %U %S'; { time eval "${COMMANDS[$1]}" >/dev/null 2>&1; } 2>&1)
+	output=$(TIMEFORMAT='%R %U %S'; { time eval "${COMMANDS[$1]}" <&- >/dev/null 2>&1; } 2>&1)
 	E=$?
 	if (( E )); then
 		if [[ -z "$FAILURE" ]]; then
@@ -442,7 +442,7 @@ for i in "${!COMMANDS[@]}"; do
 		for ((j = 0; j < WARMUP; ++j)); do
 			prepare "$i"
 			
-			output=$(eval "${COMMANDS[i]}" >/dev/null 2>&1)
+			output=$(eval "${COMMANDS[i]}" <&- >/dev/null 2>&1)
 			E=$?
 			if (( E )) && [[ -z "$FAILURE" ]]; then
 				if [[ -n "$INTERACTIVE" ]]; then
@@ -495,7 +495,7 @@ for i in "${!COMMANDS[@]}"; do
 	fi
 	
 	if [[ -n "$CLEANUP" ]]; then
-		output=$(eval "$CLEANUP" >/dev/null 2>&1)
+		output=$(eval "$CLEANUP" <&- >/dev/null 2>&1)
 		E=$?
 		if (( E )); then
 			error "The cleanup command terminated with a non-zero exit code: $E. Append ' || true' to the command if you are sure that this can be ignored. Output: $output"
