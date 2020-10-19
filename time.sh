@@ -231,11 +231,11 @@ bar() {
 	WIDTH=${COLUMNS:-$(tput cols)}
 	# https://stackoverflow.com/a/30938702
 	text=$(echo "${2}" | sed 's/'$'\x1B''\[\([0-9]\+\(;[0-9]\+\)*\)\?[mKHfJ]//g')
-	((length=30 + ${#2} - ${#text}))
+	((length=33 + ${#2} - ${#text}))
 	
 	if [[ -z "$UNICODE" ]]; then
 		label="$(printf "%.1f" "${1/./$decimal_point}")%"
-		abar_length=${bar_length:-$((WIDTH < 43 ? 10 : WIDTH - 33))}
+		abar_length=${bar_length:-$((WIDTH < 43 ? 10 : WIDTH - 36))}
 		# ((usage=$1 * abar_length / 100))
 		usage=$(echo "$1 $abar_length" | awk '{ printf "%d", $1 * $2 / 100 }')
 
@@ -252,7 +252,7 @@ bar() {
 		printf "\e[K%-*s [${3}%s${3:+${NC}}%s]\r" "$length" "${2}" "${output::$usage}" "${output:$usage}"
 	else
 		label="$(printf "%5.1f" "${1/./$decimal_point}")%"
-		abar_length=${bar_length:-$((WIDTH < 50 ? 10 : WIDTH - 40))}
+		abar_length=${bar_length:-$((WIDTH < 50 ? 10 : WIDTH - 43))}
 		((abar_length*=8))
 		usage=$(echo "$1 $abar_length" | awk '{ printf "%d", $1 * $2 / 100 }')
 
