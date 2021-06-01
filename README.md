@@ -11,7 +11,7 @@ A port of the [hyperfine](https://github.com/sharkdp/hyperfine) Benchmarking Too
 * Supports outputting in ASCII only (no Unicode characters) to support older terminals.
 * Slightly faster when interactive output (the progress bar) is disabled.
 
-Please visit [tealdulcet.com](https://www.tealdulcet.com/) to support this script and my other software development.
+❤️ Please visit [tealdulcet.com](https://www.tealdulcet.com/) to support this script and my other software development.
 
 ![](images/screenshot.png)
 Benchmark of the GNU [factor](https://www.gnu.org/software/coreutils/manual/html_node/factor-invocation.html) and uutils [factor](https://github.com/uutils/coreutils) commands.
@@ -95,6 +95,8 @@ Examples:
 Pull requests welcome! Ideas for contributions:
 
 * Support more of hyperfine's options
+    * Support the show output option
+* Add option to use the GNU time command (`/usr/bin/time`)
 * Add more examples
 * Improve the performance
 * Add tests

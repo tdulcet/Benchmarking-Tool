@@ -249,7 +249,7 @@ bar() {
 		fi
 
 		output="${prog// /|}${total}${label}"
-		printf "\e[K%-*s [${3}%s${3:+${NC}}%s]\r" "$length" "${2}" "${output::$usage}" "${output:$usage}"
+		printf "\e]9;4;1;%.0f\e[K%-*s [${3}%s${3:+${NC}}%s]\r" "${1/./$decimal_point}" "$length" "${2}" "${output::$usage}" "${output:$usage}"
 	else
 		label="$(printf "%5.1f" "${1/./$decimal_point}")%"
 		abar_length=${bar_length:-$((WIDTH < 50 ? 10 : WIDTH - 43))}
@@ -261,7 +261,7 @@ bar() {
 		printf -v total "%$(( (abar_length - usage) / 8 ))s"
 
 		blocks=( "" "▏" "▎" "▍" "▌" "▋" "▊" "▉" )
-		printf "\e[K%-*s %s [${3}${prog// /█}${blocks[usage % 8]}${3:+${NC}}${total}]\r" "$length" "${2}" "${label}"
+		printf "\e]9;4;1;%.0f\e[K%-*s %s [${3}${prog// /█}${blocks[usage % 8]}${3:+${NC}}${total}]\r" "${1/./$decimal_point}" "$length" "${2}" "${label}"
 	fi
 }
 
@@ -281,7 +281,7 @@ mean() {
 # Calculate speed, standard deviation and percentage
 # ratio_stddev <mean> <standard deviation> <fastest mean> <fastest standard deviation>
 ratio_stddev() {
-	echo "$1 $2 $3 $4" | awk '{ mean=$1/$3; printf "%.15g\t%.15g\t%.15g\n", mean, mean * sqrt(($2/$1)^2+($4/$3)^2), mean * 100 }'
+	echo "$1 $2 $3 $4" | awk '{ mean=$1/$3; printf "%.15g\t%.15g\t%.15g\n", mean, mean * sqrt(($2/$1)^2+($4/$3)^2), (mean * 100) - 100 }'
 }
 
 # Calculate median
@@ -310,7 +310,7 @@ prepare() {
 		E=$?
 		if (( E )); then
 			if [[ -n "$INTERACTIVE" ]]; then
-				echo -e -n '\e[K'
+				echo -e -n '\e]9;4;2;\e[K'
 			fi
 			error "The preparation command terminated with a non-zero exit code: $E. Append ' || true' to the command if you are sure that this can be ignored. Output: $output"
 		fi
@@ -329,7 +329,7 @@ run() {
 	if (( E )); then
 		if [[ -z "$FAILURE" ]]; then
 			if [[ -n "$INTERACTIVE" ]]; then
-				echo -e -n '\e[K'
+				echo -e -n '\e]9;4;2;\e[K'
 			fi
 			error "Command terminated with non-zero exit code: $E. Use the '-i' ignore-failure option if you want to ignore this. Output: $(echo "$output" | head -n -1)"
 		fi
@@ -430,7 +430,7 @@ for i in "${!COMMANDS[@]}"; do
 	
 	RUNS=$MINRUNS
 	
-	printf "${BOLD}Benchmark #%'d${NC}: %s\n" "$((i+1))" "${NAMES[i]}"
+	printf "${BOLD}Benchmark #%'d${NC}: %s\n" $((i+1)) "${NAMES[i]}"
 	
 	if [[ $WARMUP -gt 0 ]]; then
 		if [[ -n "$INTERACTIVE" ]]; then
@@ -446,7 +446,7 @@ for i in "${!COMMANDS[@]}"; do
 			E=$?
 			if (( E )) && [[ -z "$FAILURE" ]]; then
 				if [[ -n "$INTERACTIVE" ]]; then
-					echo -e -n '\e[K'
+					echo -e -n '\e]9;4;2;\e[K'
 				fi
 				error "Command terminated with non-zero exit code: $E. Use the '-i' ignore-failure option if you want to ignore this. Output: $output"
 			fi
@@ -476,7 +476,7 @@ for i in "${!COMMANDS[@]}"; do
 	
 	if [[ -n "$INTERACTIVE" ]]; then
 		percentages=( $(for (( j = 0; j <= RUNS; ++j )); do echo "$j"; done | awk '{ printf "%.15g\n", $1 / '"$RUNS"' * 100 }') )
-		bar "${percentages[1]}" "$(printf "Run %'d/%'d, estimate: ${GREEN}%.3fs${NC}" 1 "$RUNS" "${ELAPSED[0]/./$decimal_point}")"
+		bar "${percentages[1]}" "$(printf "Run %'d/%'d, estimate: ${GREEN}%'.3fs${NC}" 1 "$RUNS" "${ELAPSED[0]/./$decimal_point}")"
 	fi
 	
 	for ((j = 1; j < RUNS; ++j)); do
@@ -485,13 +485,13 @@ for i in "${!COMMANDS[@]}"; do
 		((k=j+1))
 		if [[ -n "$INTERACTIVE" ]] && [[ $RUNS -le 20 || $(( k % (RUNS / MIN) )) -eq 0 || $k -eq $RUNS ]]; then
 			amean=$(mean "${ELAPSED[@]}")
-			bar "${percentages[k]}" "$(printf "Run %'d/%'d, estimate: ${GREEN}%.3fs${NC}" "$k" "$RUNS" "${amean/./$decimal_point}")"
+			bar "${percentages[k]}" "$(printf "Run %'d/%'d, estimate: ${GREEN}%'.3fs${NC}" "$k" "$RUNS" "${amean/./$decimal_point}")"
 		fi
 		# echo "${ELAPSED[j]}"
 	done
 	
 	if [[ -n "$INTERACTIVE" ]]; then
-		echo -e -n '\e[K'
+		echo -e -n '\e]9;4;0;\e[K'
 	fi
 	
 	if [[ -n "$CLEANUP" ]]; then
@@ -518,11 +518,11 @@ for i in "${!COMMANDS[@]}"; do
 	cpu=$(echo "$amean $usermean $systemmean" | awk '{ printf "%.15g\n", ($2 + $3) / $1 * 100 }')
 	
 	if [[ -z "$UNICODE" ]]; then
-		printf "  Time (${GREEN}${BOLD}mean${NC} +- ${GREEN}${DIM}std dev${NC}):          ${GREEN}${BOLD}%7.4fs${NC} +- ${GREEN}${DIM}%7.4fs${NC}             [User: ${BLUE}%.4fs${NC}, System: ${BLUE}%.4fs${NC}]\n" "${amean/./$decimal_point}" "${stddiv/./$decimal_point}" "${usermean/./$decimal_point}" "${systemmean/./$decimal_point}"
-		printf "  Range (${CYAN}min${NC} ... ${GREEN}median${NC} ... ${MAGENTA}max${NC}):  ${CYAN}%6.3fs${NC} ... ${GREEN}%6.3fs${NC} ... ${MAGENTA}%6.3fs${NC}   CPU: %5.1f%%, ${DIM}%'d runs${NC}\n" "${min/./$decimal_point}" "${amedian/./$decimal_point}" "${max/./$decimal_point}" "${cpu/./$decimal_point}" "$RUNS"
+		printf "  Time (${GREEN}${BOLD}mean${NC} +- ${GREEN}${DIM}std dev${NC}):          ${GREEN}${BOLD}%'7.4fs${NC} +- ${GREEN}${DIM}%'7.4fs${NC}             [User: ${BLUE}%'.4fs${NC}, System: ${BLUE}%'.4fs${NC}]\n" "${amean/./$decimal_point}" "${stddiv/./$decimal_point}" "${usermean/./$decimal_point}" "${systemmean/./$decimal_point}"
+		printf "  Range (${CYAN}min${NC} ... ${GREEN}median${NC} ... ${MAGENTA}max${NC}):  ${CYAN}%'6.3fs${NC} ... ${GREEN}%'6.3fs${NC} ... ${MAGENTA}%'6.3fs${NC}   CPU: %'5.1f%%, ${DIM}%'d runs${NC}\n" "${min/./$decimal_point}" "${amedian/./$decimal_point}" "${max/./$decimal_point}" "${cpu/./$decimal_point}" "$RUNS"
 	else
-		printf "  Time (${GREEN}${BOLD}x̅ mean${NC} ± ${GREEN}${DIM}σ std dev${NC}):     ${GREEN}${BOLD}%7.4fs${NC} ± ${GREEN}${DIM}%7.4fs${NC}          [User: ${BLUE}%.4fs${NC}, System: ${BLUE}%.4fs${NC}]\n" "${amean/./$decimal_point}" "${stddiv/./$decimal_point}" "${usermean/./$decimal_point}" "${systemmean/./$decimal_point}"
-		printf "  Range (${CYAN}min${NC} … ${GREEN}x̃ median${NC} … ${MAGENTA}max${NC}):  ${CYAN}%6.3fs${NC} … ${GREEN}%6.3fs${NC} … ${MAGENTA}%6.3fs${NC}   CPU: %5.1f%%, ${DIM}%'d runs${NC}\n" "${min/./$decimal_point}" "${amedian/./$decimal_point}" "${max/./$decimal_point}" "${cpu/./$decimal_point}" "$RUNS"
+		printf "  Time (${GREEN}${BOLD}x̅ mean${NC} ± ${GREEN}${DIM}σ std dev${NC}):     ${GREEN}${BOLD}%'7.4fs${NC} ± ${GREEN}${DIM}%'7.4fs${NC}          [User: ${BLUE}%'.4fs${NC}, System: ${BLUE}%'.4fs${NC}]\n" "${amean/./$decimal_point}" "${stddiv/./$decimal_point}" "${usermean/./$decimal_point}" "${systemmean/./$decimal_point}"
+		printf "  Range (${CYAN}min${NC} … ${GREEN}x̃ median${NC} … ${MAGENTA}max${NC}):  ${CYAN}%'6.3fs${NC} … ${GREEN}%'6.3fs${NC} … ${MAGENTA}%'6.3fs${NC}   CPU: %'5.1f%%, ${DIM}%'d runs${NC}\n" "${min/./$decimal_point}" "${amedian/./$decimal_point}" "${max/./$decimal_point}" "${cpu/./$decimal_point}" "$RUNS"
 	fi
 
 	if [[ -n "$CSV" ]]; then
@@ -588,9 +588,9 @@ if [[ ${#MEAN[*]} -gt 1 ]]; then
 	
 	echo -e "${BOLD}Summary${NC}"
 	if [[ -z "$UNICODE" ]]; then
-		printf "  #%'d '${CYAN}%s${NC}' ran\n" "$((fastest+1))" "${NAMES[fastest]}"
+		printf "  #%'d '${CYAN}%s${NC}' ran\n" $((fastest+1)) "${NAMES[fastest]}"
 	else
-		printf "  #%'d ‘${CYAN}%s${NC}’ ran\n" "$((fastest+1))" "${NAMES[fastest]}"
+		printf "  #%'d ‘${CYAN}%s${NC}’ ran\n" $((fastest+1)) "${NAMES[fastest]}"
 	fi
 	
 	for i in "${!MEAN[@]}"; do
@@ -598,9 +598,9 @@ if [[ ${#MEAN[*]} -gt 1 ]]; then
 			array=( $(ratio_stddev "${MEAN[i]}" "${STDDIV[i]}" "${MEAN[fastest]}" "${STDDIV[fastest]}") )
 			
 			if [[ -z "$UNICODE" ]]; then
-				printf "${GREEN}${BOLD}%9.3f${NC} +- ${GREEN}%.3f${NC} times (%'.1f%%) faster than #%'d '${MAGENTA}%s${NC}'\n" "${array[0]/./$decimal_point}" "${array[1]/./$decimal_point}" "${array[2]/./$decimal_point}" "$((i+1))" "${NAMES[i]}"
+				printf "${GREEN}${BOLD}%'9.3f${NC} +- ${GREEN}%'.3f${NC} times (%'.1f%%) faster than #%'d '${MAGENTA}%s${NC}'\n" "${array[0]/./$decimal_point}" "${array[1]/./$decimal_point}" "${array[2]/./$decimal_point}" $((i+1)) "${NAMES[i]}"
 			else
-				printf "${GREEN}${BOLD}%9.3f${NC} ± ${GREEN}%.3f${NC} times (%'.1f%%) faster than #%'d ‘${MAGENTA}%s${NC}’\n" "${array[0]/./$decimal_point}" "${array[1]/./$decimal_point}" "${array[2]/./$decimal_point}" "$((i+1))" "${NAMES[i]}"
+				printf "${GREEN}${BOLD}%'9.3f${NC} ± ${GREEN}%'.3f${NC} times (%'.1f%%) faster than #%'d ‘${MAGENTA}%s${NC}’\n" "${array[0]/./$decimal_point}" "${array[1]/./$decimal_point}" "${array[2]/./$decimal_point}" $((i+1)) "${NAMES[i]}"
 			fi
 		fi
 	done
