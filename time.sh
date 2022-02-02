@@ -230,8 +230,10 @@ bar() {
 	local text length label abar_length usage prog total
 	WIDTH=${COLUMNS:-$(tput cols)}
 	# https://stackoverflow.com/a/30938702
-	text=$(echo "${2}" | sed 's/'$'\x1B''\[\([0-9]\+\(;[0-9]\+\)*\)\?[mKHfJ]//g')
+	text=$(echo "${2}" | sed 's/'$'\x1B''\[\([0-9]\+\(;[0-9]\+\)*\)\?m//g')
 	((length=33 + ${#2} - ${#text}))
+	
+	printf '\e]9;4;1;%.0f\e\\' "${1/./$decimal_point}"
 	
 	if [[ -z "$UNICODE" ]]; then
 		label="$(printf "%.1f" "${1/./$decimal_point}")%"
@@ -249,7 +251,7 @@ bar() {
 		fi
 
 		output="${prog// /|}${total}${label}"
-		printf "\e]9;4;1;%.0f\e[K%-*s [${3}%s${3:+${NC}}%s]\r" "${1/./$decimal_point}" "$length" "${2}" "${output::$usage}" "${output:$usage}"
+		printf "\e[K%-*s [${3}%s${3:+${NC}}%s]\r" "$length" "${2}" "${output::$usage}" "${output:$usage}"
 	else
 		label="$(printf "%5.1f" "${1/./$decimal_point}")%"
 		abar_length=${bar_length:-$((WIDTH < 50 ? 10 : WIDTH - 43))}
@@ -261,7 +263,7 @@ bar() {
 		printf -v total "%$(( (abar_length - usage) / 8 ))s"
 
 		blocks=( "" "▏" "▎" "▍" "▌" "▋" "▊" "▉" )
-		printf "\e]9;4;1;%.0f\e[K%-*s %s [${3}${prog// /█}${blocks[usage % 8]}${3:+${NC}}${total}]\r" "${1/./$decimal_point}" "$length" "${2}" "${label}"
+		printf "\e[K%-*s %s [${3}${prog// /█}${blocks[usage % 8]}${3:+${NC}}${total}]\r" "$length" "${2}" "${label}"
 	fi
 }
 
@@ -310,7 +312,7 @@ prepare() {
 		E=$?
 		if (( E )); then
 			if [[ -n "$INTERACTIVE" ]]; then
-				echo -e -n '\e]9;4;2;\e[K'
+				echo -e -n '\e]9;4;2;\e\\\e[K'
 			fi
 			error "The preparation command terminated with a non-zero exit code: $E. Append ' || true' to the command if you are sure that this can be ignored. Output: $output"
 		fi
@@ -329,7 +331,7 @@ run() {
 	if (( E )); then
 		if [[ -z "$FAILURE" ]]; then
 			if [[ -n "$INTERACTIVE" ]]; then
-				echo -e -n '\e]9;4;2;\e[K'
+				echo -e -n '\e]9;4;2;\e\\\e[K'
 			fi
 			error "Command terminated with non-zero exit code: $E. Use the '-i' ignore-failure option if you want to ignore this. Output: $(echo "$output" | head -n -1)"
 		fi
@@ -340,6 +342,7 @@ run() {
 	ELAPSED+=( "${array[0]}" )
 	USER+=( "${array[1]}" )
 	SYSTEM+=( "${array[2]}" )
+	EXIT_CODES+=( $E )
 }
 
 RE='^[0-9]+$'
@@ -398,11 +401,11 @@ fi
 MINRUNS=${MINRUNS:-$MIN}
 
 if [[ -n "$CSV" && -e "$CSV" ]]; then
-	echo "Error: File \"$CSV\" already exists." >&2
+	echo "Error: File '$CSV' already exists." >&2
 	exit 1
 fi
 if [[ -n "$JSON" && -e "$JSON" ]]; then
-	echo "Error: File \"$JSON\" already exists." >&2
+	echo "Error: File '$JSON' already exists." >&2
 	exit 1
 fi
 
@@ -425,6 +428,7 @@ for i in "${!COMMANDS[@]}"; do
 	USER=()
 	# System times
 	SYSTEM=()
+	EXIT_CODES=()
 	
 	ERRORS=0
 	
@@ -446,7 +450,7 @@ for i in "${!COMMANDS[@]}"; do
 			E=$?
 			if (( E )) && [[ -z "$FAILURE" ]]; then
 				if [[ -n "$INTERACTIVE" ]]; then
-					echo -e -n '\e]9;4;2;\e[K'
+					echo -e -n '\e]9;4;2;\e\\\e[K'
 				fi
 				error "Command terminated with non-zero exit code: $E. Use the '-i' ignore-failure option if you want to ignore this. Output: $output"
 			fi
@@ -491,7 +495,7 @@ for i in "${!COMMANDS[@]}"; do
 	done
 	
 	if [[ -n "$INTERACTIVE" ]]; then
-		echo -e -n '\e]9;4;0;\e[K'
+		echo -e -n '\e]9;4;0;\e\\\e[K'
 	fi
 	
 	if [[ -n "$CLEANUP" ]]; then
@@ -521,8 +525,8 @@ for i in "${!COMMANDS[@]}"; do
 		printf "  Time (${GREEN}${BOLD}mean${NC} +- ${GREEN}${DIM}std dev${NC}):          ${GREEN}${BOLD}%'7.4fs${NC} +- ${GREEN}${DIM}%'7.4fs${NC}             [User: ${BLUE}%'.4fs${NC}, System: ${BLUE}%'.4fs${NC}]\n" "${amean/./$decimal_point}" "${stddiv/./$decimal_point}" "${usermean/./$decimal_point}" "${systemmean/./$decimal_point}"
 		printf "  Range (${CYAN}min${NC} ... ${GREEN}median${NC} ... ${MAGENTA}max${NC}):  ${CYAN}%'6.3fs${NC} ... ${GREEN}%'6.3fs${NC} ... ${MAGENTA}%'6.3fs${NC}   CPU: %'5.1f%%, ${DIM}%'d runs${NC}\n" "${min/./$decimal_point}" "${amedian/./$decimal_point}" "${max/./$decimal_point}" "${cpu/./$decimal_point}" "$RUNS"
 	else
-		printf "  Time (${GREEN}${BOLD}x̅ mean${NC} ± ${GREEN}${DIM}σ std dev${NC}):     ${GREEN}${BOLD}%'7.4fs${NC} ± ${GREEN}${DIM}%'7.4fs${NC}          [User: ${BLUE}%'.4fs${NC}, System: ${BLUE}%'.4fs${NC}]\n" "${amean/./$decimal_point}" "${stddiv/./$decimal_point}" "${usermean/./$decimal_point}" "${systemmean/./$decimal_point}"
-		printf "  Range (${CYAN}min${NC} … ${GREEN}x̃ median${NC} … ${MAGENTA}max${NC}):  ${CYAN}%'6.3fs${NC} … ${GREEN}%'6.3fs${NC} … ${MAGENTA}%'6.3fs${NC}   CPU: %'5.1f%%, ${DIM}%'d runs${NC}\n" "${min/./$decimal_point}" "${amedian/./$decimal_point}" "${max/./$decimal_point}" "${cpu/./$decimal_point}" "$RUNS"
+		printf "  Time (${GREEN}${BOLD}mean${NC} ± ${GREEN}${DIM}σ std dev${NC}):     ${GREEN}${BOLD}%'7.4fs${NC} ± ${GREEN}${DIM}%'7.4fs${NC}          [User: ${BLUE}%'.4fs${NC}, System: ${BLUE}%'.4fs${NC}]\n" "${amean/./$decimal_point}" "${stddiv/./$decimal_point}" "${usermean/./$decimal_point}" "${systemmean/./$decimal_point}"
+		printf "  Range (${CYAN}min${NC} … ${GREEN}median${NC} … ${MAGENTA}max${NC}):  ${CYAN}%'6.3fs${NC} … ${GREEN}%'6.3fs${NC} … ${MAGENTA}%'6.3fs${NC}   CPU: %'5.1f%%, ${DIM}%'d runs${NC}\n" "${min/./$decimal_point}" "${amedian/./$decimal_point}" "${max/./$decimal_point}" "${cpu/./$decimal_point}" "$RUNS"
 	fi
 
 	if [[ -n "$CSV" ]]; then
@@ -530,7 +534,7 @@ for i in "${!COMMANDS[@]}"; do
 	fi
 	if [[ -n "$JSON" ]]; then
 		{
-			if [[ $i -gt 0 ]]; then
+			if (( i )); then
 				printf ','
 			fi
 			printf '
@@ -546,8 +550,12 @@ for i in "${!COMMANDS[@]}"; do
       "times": [\n' "${NAMES[i]}" "$amean" "$stddiv" "$amedian" "$usermean" "$systemmean" "$min" "$max"
 			printf '        %s,\n' "${ELAPSED[@]::${#ELAPSED[*]}-1}"
 			printf '        %s
+      ],
+      "exit_codes": [\n' "${ELAPSED[@]: -1}"
+			printf '        %s,\n' "${EXIT_CODES[@]::${#EXIT_CODES[*]}-1}"
+			printf '        %s
       ]
-    }' "${ELAPSED[@]: -1}"
+    }' "${EXIT_CODES[@]: -1}"
 		} >> "$JSON"
 	fi
 	
