@@ -6,6 +6,7 @@
 # Run: ./time.sh [OPTIONS] <command(s)>...
 
 # set -e
+set -o pipefail
 
 # Set the variables below
 
@@ -27,6 +28,8 @@ NAMES=(
 
 )
 
+# Setup command to execute before all runs for each command
+SETUP=''
 # Prepare command(s) to execute before each run
 PREPARE=(
 
@@ -48,6 +51,8 @@ CLEANUP=''
 UNICODE=1
 # Interactive output
 INTERACTIVE=1
+# Output where (null, pipe, inherit, <FILE>)
+OUTPUT=null
 
 # Default minimum number of runs
 MIN=10
@@ -92,6 +97,8 @@ Options:
                         Perform at most NUM runs for each command. Default: ${MAXRUNS:-no limit}
     -r <NUM>        Runs
                         Perform exactly NUM runs for each command. If this option is not specified, it will automatically determines the number of runs.
+    -s <command>    Setup
+                        Execute command before each set of runs. This is useful for compiling your software with the provided parameters, or to do any other work that should happen once before a series of benchmark runs, not every time as would happen with the prepare option.
     -p <command>    Prepare
                         Execute command before each run. This is useful for clearing disk caches, for example. The prepare option can be specified once for all commands or multiple times, once for each command. In the latter case, each preparation command will be run prior to the corresponding benchmark command.
     -c <command>    Cleanup
@@ -100,14 +107,20 @@ Options:
                         Ignore non-zero exit codes of the benchmarked programs.
     -u              ASCII
                         Do not use Unicode characters in output.
-    -s              Disable interactive
+    -S              Disable interactive
                         Disable interactive output and progress bars.
     -C <FILE>       Export CSV
                         Export the timing summary statistics as CSV to the given FILE.
     -j <FILE>       Export JSON
                         Export the timing summary statistics and timings of individual runs as JSON to the given FILE.
+    -o <WHERE>      Output	
+                        Control where the output of the benchmark is redirected. <WHERE> can be:
+                            null: Redirect both stdout and stderr to '/dev/null' (default).
+                            pipe: Feed stdout through a pipe before discarding it and redirect stderr to '/dev/null'.
+                            inherit: Output the stdout and stderr.
+                            <FILE>: Write both stdout and stderr to the given FILE.
     -n <NAME>       Command-name
-                        Give a meaningful name to a command.
+                        Give a meaningful name to a command. This can be specified multiple times if several commands are benchmarked.
     -h              Display this help and exit
     -v              Output version information and exit
 
@@ -143,7 +156,7 @@ if [[ $# -eq 0 ]]; then
 	exit 1
 fi
 
-while getopts "c:hij:m:n:p:r:suvw:C:M:" c; do
+while getopts "c:hij:m:n:o:p:r:s:uvw:C:SM:" c; do
 	case ${c} in
 	c )
 		CLEANUP=$OPTARG
@@ -164,6 +177,9 @@ while getopts "c:hij:m:n:p:r:suvw:C:M:" c; do
 	n )
 		NAMES+=( "$OPTARG" )
 	;;
+	o )
+		OUTPUT=$OPTARG
+	;;
 	p )
 		PREPARE+=( "$OPTARG" )
 	;;
@@ -171,7 +187,7 @@ while getopts "c:hij:m:n:p:r:suvw:C:M:" c; do
 		RUNS=$OPTARG
 	;;
 	s )
-		INTERACTIVE=''
+		SETUP=$OPTARG
 	;;
 	u )
 		UNICODE=''
@@ -185,6 +201,9 @@ while getopts "c:hij:m:n:p:r:suvw:C:M:" c; do
 	;;
 	C )
 		CSV=$OPTARG
+	;;
+	S )
+		INTERACTIVE=''
 	;;
 	M )
 		MAXRUNS=$OPTARG
@@ -304,36 +323,55 @@ modified_zscores() {
 	printf '%s\n' "$@" | awk 'BEGIN { mad='"$mad"'; if(mad==0) mad=10^-308 } { printf "%.15g\n", ($1 - '"$x_median"') / mad }'
 }
 
+# Run command
+# run <commands>...
+run() {
+	case ${OUTPUT} in
+	null )
+		eval -- "$*" <&- &>/dev/null
+	;;
+	pipe )
+		eval -- "$*" <&- 2>/dev/null | cat >/dev/null
+	;;
+	inherit )
+		eval -- "$*" <&- 1>&3- 2>&4-
+	;;
+	* )
+		eval -- "$*" <&- &>>"$OUTPUT"
+	;;
+	esac
+}
+
 # Run preparation command
 # prepare <commands index>
 prepare() {
 	if [[ ${#PREPARE[*]} -gt 0 ]]; then
-		output=$(eval "${PREPARE[${#PREPARE[*]} > 1 ? $1 : 0]}" <&- >/dev/null 2>&1)
+		{ run "${PREPARE[${#PREPARE[*]} > 1 ? $1 : 0]}"; } 3>&1 4>&2
 		E=$?
 		if (( E )); then
 			if [[ -n "$INTERACTIVE" ]]; then
 				echo -e -n '\e]9;4;2;\e\\\e[K'
 			fi
-			error "The preparation command terminated with a non-zero exit code: $E. Append ' || true' to the command if you are sure that this can be ignored. Output: $output"
+			error "The preparation command terminated with a non-zero exit code: $E. Append ' || true' to the command if you are sure that this can be ignored."
 		fi
 	fi
 }
 
 # Run command
-# run <commands index>
-run() {
+# bench <commands index>
+bench() {
 	local array
 	
 	prepare "$i"
 	
-	output=$(TIMEFORMAT='%R %U %S'; { time eval "${COMMANDS[$1]}" <&- >/dev/null 2>&1; } 2>&1)
+	{ output=$(TIMEFORMAT='%R %U %S'; { time run "${COMMANDS[$1]}"; } 2>&1); } 3>&1 4>&2
 	E=$?
 	if (( E )); then
 		if [[ -z "$FAILURE" ]]; then
 			if [[ -n "$INTERACTIVE" ]]; then
 				echo -e -n '\e]9;4;2;\e\\\e[K'
 			fi
-			error "Command terminated with non-zero exit code: $E. Use the '-i' ignore-failure option if you want to ignore this. Output: $(echo "$output" | head -n -1)"
+			error "Command terminated with non-zero exit code: $E. Use the '-i' ignore-failure option if you want to ignore this. Alternatively, use the '-o' output option to debug what went wrong. Output: $(echo "$output" | head -n -1)"
 		fi
 		((++ERRORS))
 	fi
@@ -342,7 +380,7 @@ run() {
 	ELAPSED+=( "${array[0]}" )
 	USER+=( "${array[1]}" )
 	SYSTEM+=( "${array[2]}" )
-	EXIT_CODES+=( $E )
+	EXIT_CODES+=( "$E" )
 }
 
 RE='^[0-9]+$'
@@ -418,6 +456,22 @@ if [[ -n "$JSON" ]]; then
   "results": [' > "$JSON"
 fi
 
+case ${OUTPUT} in
+null )
+;;
+pipe )
+;;
+inherit )
+	INTERACTIVE=''
+;;
+* )
+	if [[ -e "$OUTPUT" ]]; then
+		echo "Error: File '$OUTPUT' already exists." >&2
+		exit 1
+	fi
+;;
+esac
+
 MEAN=()
 STDDIV=()
 
@@ -436,6 +490,14 @@ for i in "${!COMMANDS[@]}"; do
 	
 	printf "${BOLD}Benchmark #%'d${NC}: %s\n" $((i+1)) "${NAMES[i]}"
 	
+	if [[ -n "$SETUP" ]]; then
+		{ run "$SETUP"; } 3>&1 4>&2
+		E=$?
+		if (( E )); then
+			error "The setup command terminated with a non-zero exit code: $E. Append ' || true' to the command if you are sure that this can be ignored."
+		fi
+	fi
+	
 	if [[ $WARMUP -gt 0 ]]; then
 		if [[ -n "$INTERACTIVE" ]]; then
 			bar 0 "Performing warmup runs"
@@ -446,13 +508,13 @@ for i in "${!COMMANDS[@]}"; do
 		for ((j = 0; j < WARMUP; ++j)); do
 			prepare "$i"
 			
-			output=$(eval "${COMMANDS[i]}" <&- >/dev/null 2>&1)
+			{ run "${COMMANDS[i]}"; } 3>&1 4>&2
 			E=$?
 			if (( E )) && [[ -z "$FAILURE" ]]; then
 				if [[ -n "$INTERACTIVE" ]]; then
 					echo -e -n '\e]9;4;2;\e\\\e[K'
 				fi
-				error "Command terminated with non-zero exit code: $E. Use the '-i' ignore-failure option if you want to ignore this. Output: $output"
+				error "Command terminated with non-zero exit code: $E. Use the '-i' ignore-failure option if you want to ignore this."
 			fi
 			
 			((k=j+1))
@@ -466,7 +528,7 @@ for i in "${!COMMANDS[@]}"; do
 		bar 0 "Initial time measurement"
 	fi
 	
-	run "$i"
+	bench "$i"
 	
 	runs=$(echo "$MINTIME ${ELAPSED[0]}" | awk '{ printf "%d", $1 / $2 }')
 	
@@ -484,7 +546,7 @@ for i in "${!COMMANDS[@]}"; do
 	fi
 	
 	for ((j = 1; j < RUNS; ++j)); do
-		run "$i"
+		bench "$i"
 		
 		((k=j+1))
 		if [[ -n "$INTERACTIVE" ]] && [[ $RUNS -le 20 || $(( k % (RUNS / MIN) )) -eq 0 || $k -eq $RUNS ]]; then
@@ -499,10 +561,10 @@ for i in "${!COMMANDS[@]}"; do
 	fi
 	
 	if [[ -n "$CLEANUP" ]]; then
-		output=$(eval "$CLEANUP" <&- >/dev/null 2>&1)
+		{ run "$CLEANUP"; } 3>&1 4>&2
 		E=$?
 		if (( E )); then
-			error "The cleanup command terminated with a non-zero exit code: $E. Append ' || true' to the command if you are sure that this can be ignored. Output: $output"
+			error "The cleanup command terminated with a non-zero exit code: $E. Append ' || true' to the command if you are sure that this can be ignored."
 		fi
 	fi
 

@@ -6,10 +6,10 @@ Copyright © 2020 Teal Dulcet
 A port of the [hyperfine](https://github.com/sharkdp/hyperfine) Benchmarking Tool to Bash.
 
 * Does NOT require installing Rust, downloading dependencies or compiling anything.
-* Includes the [same features](https://github.com/sharkdp/hyperfine#features) (except the last one), produces the same output (with some improvements) and supports most of the same command line options.
+* Includes the [same features](https://github.com/sharkdp/hyperfine#features) (except Linux only), produces the same output (with some improvements) and supports most of the same command line options.
 * Outputs most of the numbers with greater precision and outputs more information.
 * Supports outputting in ASCII only (no Unicode characters) to support older terminals.
-* Slightly faster when interactive output (the progress bar) is disabled.
+* Slightly faster when interactive output (the progress bar) is disabled, as it does not need to launch intermediate shells.
 
 ❤️ Please visit [tealdulcet.com](https://www.tealdulcet.com/) to support this script and my other software development.
 
@@ -44,6 +44,8 @@ Options:
                         Perform at most NUM runs for each command. Default: no limit
     -r <NUM>        Runs
                         Perform exactly NUM runs for each command. If this option is not specified, it will automatically determines the number of runs.
+    -s <command>    Setup
+                        Execute command before each set of runs. This is useful for compiling your software with the provided parameters, or to do any other work that should happen once before a series of benchmark runs, not every time as would happen with the prepare option.
     -p <command>    Prepare
                         Execute command before each run. This is useful for clearing disk caches, for example. The prepare option can be specified once for all commands or multiple times, once for each command. In the latter case, each preparation command will be run prior to the corresponding benchmark command.
     -c <command>    Cleanup
@@ -52,14 +54,20 @@ Options:
                         Ignore non-zero exit codes of the benchmarked programs.
     -u              ASCII
                         Do not use Unicode characters in output.
-    -s              Disable interactive
+    -S              Disable interactive
                         Disable interactive output and progress bars.
     -C <FILE>       Export CSV
                         Export the timing summary statistics as CSV to the given FILE.
     -j <FILE>       Export JSON
                         Export the timing summary statistics and timings of individual runs as JSON to the given FILE.
+    -o <WHERE>      Output
+                        Control where the output of the benchmark is redirected. <WHERE> can be:
+                            null: Redirect both stdout and stderr to '/dev/null' (default).
+                            pipe: Feed stdout through a pipe before discarding it and redirect stderr to '/dev/null'.
+                            inherit: Output the stdout and stderr.
+                            <FILE>: Write both stdout and stderr to the given FILE.
     -n <NAME>       Command-name
-                        Give a meaningful name to a command.
+                        Give a meaningful name to a command. This can be specified multiple times if several commands are benchmarked.
     -h              Display this help and exit
     -v              Output version information and exit
 
@@ -95,7 +103,6 @@ Examples:
 Pull requests welcome! Ideas for contributions:
 
 * Support more of hyperfine's options
-    * Support the show output option
 * Add option to use the GNU time command (`/usr/bin/time`)
 * Add more examples
 * Improve the performance
