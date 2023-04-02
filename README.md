@@ -1,5 +1,5 @@
 # Benchmarking Tool
-Linux Benchmarking Tool
+Linux command-line Benchmarking Tool
 
 Copyright © 2020 Teal Dulcet
 
@@ -25,7 +25,7 @@ All the options can also be set by opening the script in an editor and setting t
 
 1. Download the script ([time.sh](time.sh)). Run: `wget https://raw.github.com/tdulcet/Benchmarking-Tool/main/time.sh`.
 2. Execute the script once to make sure there are no errors. For example, run: `chmod u+x time.sh` and `./time.sh 'sleep 0.3'`.
-3. If you want the script to be available for all users, install it. Run: `sudo mv time.sh /usr/local/bin/benchmark` and `sudo chmod +x /usr/local/bin/benchmark`.
+3. If you want the script to be available for all users, install it. Run: `sudo cp time.sh /usr/local/bin/benchmark` and `sudo chmod +x /usr/local/bin/benchmark`.
 
 ## Help
 
@@ -103,6 +103,7 @@ Examples:
 Pull requests welcome! Ideas for contributions:
 
 * Support more of hyperfine's options
+	* Support disabling color output
 * Add option to use the GNU time command (`/usr/bin/time`)
 * Add more examples
 * Improve the performance

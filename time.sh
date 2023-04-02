@@ -170,6 +170,9 @@ while getopts "c:hij:m:n:o:p:r:s:uvw:C:SM:" c; do
 	;;
 	j )
 		JSON=$OPTARG
+		if [[ "$JSON" == - ]]; then
+			JSON=/dev/stdout
+		fi
 	;;
 	m )
 		MINRUNS=$OPTARG
@@ -201,6 +204,9 @@ while getopts "c:hij:m:n:o:p:r:s:uvw:C:SM:" c; do
 	;;
 	C )
 		CSV=$OPTARG
+		if [[ "$CSV" == - ]]; then
+			CSV=/dev/stdout
+		fi
 	;;
 	S )
 		INTERACTIVE=''
@@ -633,9 +639,23 @@ for i in "${!COMMANDS[@]}"; do
 	
 	scores=( $(modified_zscores "${ELAPSED[@]}") )
 	if (( $(echo "${scores[0]} $OUTLIERTHRESHOLD" | awk '{ print ($1>$2) }') )); then
-		warning "The first benchmarking run for this command was significantly slower than the rest (${ELAPSED[0]}s). This could be caused by (filesystem) caches that were not filled until after the first run. You should consider using the warmup option to fill those caches before the actual benchmark. Alternatively, use the prepare option to clear the caches before each timing run."
+		text="The first benchmarking run for this command was significantly slower than the rest (${ELAPSED[0]}s). This could be caused by (filesystem) caches that were not filled until after the first run. "
+		if [[ $WARMUP -gt 0 && ${#PREPARE[*]} -gt 0 ]]; then
+			text+="You are already using both the warmup option as well as the prepare option. Consider re-running the benchmark on a quiet system. Maybe it was a random outlier. Alternatively, consider increasing the warmup count."
+		elif [[ $WARMUP -gt 0 ]]; then
+			text+="You are already using the warmup option which helps to fill these caches before the actual benchmark. You can either try to increase the warmup count further or re-run this benchmark on a quiet system in case it was a random outlier. Alternatively, consider using the prepare option to clear the caches before each timing run."
+		elif [[ ${#PREPARE[*]} -gt 0 ]]; then
+			text+="You are already using the prepare option which can be used to clear caches. If you did not use a cache-clearing command with prepare, you can either try that or consider using the warmup option to fill those caches before the actual benchmark."
+		else
+			text+="You should consider using the warmup option to fill those caches before the actual benchmark. Alternatively, use the prepare option to clear the caches before each timing run."
+		fi
+		warning "$text"
 	elif (( output=$(printf '%s\n' "${scores[@]}" | awk 'function abs(x) { return x<0 ? -x : x } abs($1)>'"$OUTLIERTHRESHOLD"' { ++t } END { printf "%d", t }') )); then
-		warning "$output statistical outlier(s) were detected (> $OUTLIERTHRESHOLD modified Z-scores or about 10${UNICODE:+σ} std devs). Consider re-running this benchmark on a quiet system without any interferences from other programs. It might help to use the warmup or prepare options."
+		text="$output statistical outlier(s) were detected (> $OUTLIERTHRESHOLD modified Z-scores or about 10${UNICODE:+σ} std devs). Consider re-running this benchmark on a quiet system without any interferences from other programs."
+		if [[ $WARMUP -eq 0 && ${#PREPARE[*]} -eq 0 ]]; then
+			text+=" It might help to use the warmup or prepare options."
+		fi
+		warning "$text"
 	fi
 	# printf '%s\n' "${scores[@]}"
 done
