@@ -170,9 +170,6 @@ while getopts "c:hij:m:n:o:p:r:s:uvw:C:SM:" c; do
 	;;
 	j )
 		JSON=$OPTARG
-		if [[ "$JSON" == - ]]; then
-			JSON=/dev/stdout
-		fi
 	;;
 	m )
 		MINRUNS=$OPTARG
@@ -204,9 +201,6 @@ while getopts "c:hij:m:n:o:p:r:s:uvw:C:SM:" c; do
 	;;
 	C )
 		CSV=$OPTARG
-		if [[ "$CSV" == - ]]; then
-			CSV=/dev/stdout
-		fi
 	;;
 	S )
 		INTERACTIVE=''
@@ -444,13 +438,21 @@ fi
 
 MINRUNS=${MINRUNS:-$MIN}
 
-if [[ -n "$CSV" && -e "$CSV" ]]; then
-	echo "Error: File '$CSV' already exists." >&2
-	exit 1
+if [[ -n "$CSV" ]]; then
+	if [[ "$CSV" == - ]]; then
+		CSV=/dev/stdout
+	elif [[ -e "$CSV" ]]; then
+		echo "Error: File '$CSV' already exists." >&2
+		exit 1
+	fi
 fi
-if [[ -n "$JSON" && -e "$JSON" ]]; then
-	echo "Error: File '$JSON' already exists." >&2
-	exit 1
+if [[ -n "$JSON" ]]; then
+	if [[ "$JSON" == - ]]; then
+		JSON=/dev/stdout
+	elif [[ -e "$JSON" ]]; then
+		echo "Error: File '$JSON' already exists." >&2
+		exit 1
+	fi
 fi
 
 if [[ -n "$CSV" ]]; then
