@@ -158,60 +158,60 @@ fi
 
 while getopts "c:hij:m:n:o:p:r:s:uvw:C:SM:" c; do
 	case ${c} in
-	c )
-		CLEANUP=$OPTARG
-	;;
-	h )
-		usage "$0"
-		exit 0
-	;;
-	i )
-		FAILURE=1
-	;;
-	j )
-		JSON=$OPTARG
-	;;
-	m )
-		MINRUNS=$OPTARG
-	;;
-	n )
-		NAMES+=( "$OPTARG" )
-	;;
-	o )
-		OUTPUT=$OPTARG
-	;;
-	p )
-		PREPARE+=( "$OPTARG" )
-	;;
-	r )
-		RUNS=$OPTARG
-	;;
-	s )
-		SETUP=$OPTARG
-	;;
-	u )
-		UNICODE=''
-	;;
-	v )
-		echo -e "Bash Benchmark 1.0\n"
-		exit 0
-	;;
-	w )
-		WARMUP=$OPTARG
-	;;
-	C )
-		CSV=$OPTARG
-	;;
-	S )
-		INTERACTIVE=''
-	;;
-	M )
-		MAXRUNS=$OPTARG
-	;;
-	\? )
-		echo -e "Try '$0 -h' for more information.\n" >&2
-		exit 1
-	;;
+		c)
+			CLEANUP=$OPTARG
+			;;
+		h)
+			usage "$0"
+			exit 0
+			;;
+		i)
+			FAILURE=1
+			;;
+		j)
+			JSON=$OPTARG
+			;;
+		m)
+			MINRUNS=$OPTARG
+			;;
+		n)
+			NAMES+=("$OPTARG")
+			;;
+		o)
+			OUTPUT=$OPTARG
+			;;
+		p)
+			PREPARE+=("$OPTARG")
+			;;
+		r)
+			RUNS=$OPTARG
+			;;
+		s)
+			SETUP=$OPTARG
+			;;
+		u)
+			UNICODE=''
+			;;
+		v)
+			echo -e "Bash Benchmark 1.0\n"
+			exit 0
+			;;
+		w)
+			WARMUP=$OPTARG
+			;;
+		C)
+			CSV=$OPTARG
+			;;
+		S)
+			INTERACTIVE=''
+			;;
+		M)
+			MAXRUNS=$OPTARG
+			;;
+		\?)
+			echo -e "Try '$0 -h' for more information.\n" >&2
+			exit 1
+			;;
 	esac
 done
 shift $((OPTIND - 1))
@@ -223,9 +223,9 @@ fi
 
 decimal_point=$(locale decimal_point)
 
-COMMANDS+=( "$@" )
+COMMANDS+=("$@")
 
-if [[ -n "$INTERACTIVE" ]]; then
+if [[ -n $INTERACTIVE ]]; then
 	if ! [ -t 1 ]; then
 		INTERACTIVE=''
 	fi
@@ -250,11 +250,11 @@ bar() {
 	WIDTH=${COLUMNS:-$(tput cols)}
 	# https://stackoverflow.com/a/30938702
 	text=$(echo "${2}" | sed 's/'$'\x1B''\[\([0-9]\+\(;[0-9]\+\)*\)\?m//g')
-	((length=33 + ${#2} - ${#text}))
-	
+	((length = 33 + ${#2} - ${#text}))
+
 	printf '\e]9;4;1;%.0f\e\\' "${1/./$decimal_point}"
-	
-	if [[ -z "$UNICODE" ]]; then
+
+	if [[ -z $UNICODE ]]; then
 		label="$(printf "%.1f" "${1/./$decimal_point}")%"
 		abar_length=${bar_length:-$((WIDTH < 43 ? 10 : WIDTH - 36))}
 		# ((usage=$1 * abar_length / 100))
@@ -262,26 +262,26 @@ bar() {
 
 		# Create the bar with spaces.
 		if [[ ${#label} -gt $((abar_length - usage)) ]]; then
-			printf -v prog  "%$(( abar_length - ${#label} ))s"
+			printf -v prog "%$((abar_length - ${#label}))s"
 			total=''
 		else
-			printf -v prog  "%${usage}s"
-			printf -v total "%$(( abar_length - usage - ${#label} ))s"
+			printf -v prog "%${usage}s"
+			printf -v total "%$((abar_length - usage - ${#label}))s"
 		fi
 
 		output="${prog// /|}${total}${label}"
-		printf "\e[K%-*s [${3}%s${3:+${NC}}%s]\r" "$length" "${2}" "${output::$usage}" "${output:$usage}"
+		printf "\e[K%-*s [${3}%s${3:+${NC}}%s]\r" "$length" "${2}" "${output::usage}" "${output:usage}"
 	else
 		label="$(printf "%5.1f" "${1/./$decimal_point}")%"
 		abar_length=${bar_length:-$((WIDTH < 50 ? 10 : WIDTH - 43))}
-		((abar_length*=8))
+		((abar_length *= 8))
 		usage=$(echo "$1 $abar_length" | awk '{ printf "%d", $1 * $2 / 100 }')
 
 		# Create the bar with spaces.
-		printf -v prog  "%$(( usage / 8 ))s"
-		printf -v total "%$(( (abar_length - usage) / 8 ))s"
+		printf -v prog "%$((usage / 8))s"
+		printf -v total "%$(((abar_length - usage) / 8))s"
 
-		blocks=( "" "▏" "▎" "▍" "▌" "▋" "▊" "▉" )
+		blocks=("" "▏" "▎" "▍" "▌" "▋" "▊" "▉")
 		printf "\e[K%-*s %s [${3}${prog// /█}${blocks[usage % 8]}${3:+${NC}}${total}]\r" "$length" "${2}" "${label}"
 	fi
 }
@@ -315,10 +315,10 @@ median() {
 # Adapted from: https://github.com/sharkdp/hyperfine/blob/master/src/hyperfine/outlier_detection.rs
 # modified_zscores <times>...
 modified_zscores() {
-	local x_median deviations mad 
-	
+	local x_median deviations mad
+
 	x_median=$(median "$@")
-	deviations=( $(printf '%s\n' "$@" | awk 'function abs(x) { return x<0 ? -x : x } { printf "%.15g\n", abs($1 - '"$x_median"') }') )
+	deviations=($(printf '%s\n' "$@" | awk 'function abs(x) { return x<0 ? -x : x } { printf "%.15g\n", abs($1 - '"$x_median"') }'))
 	mad=$(median "${deviations[@]}")
 	printf '%s\n' "$@" | awk 'BEGIN { mad='"$mad"'; if(mad==0) mad=10^-308 } { printf "%.15g\n", ($1 - '"$x_median"') / mad }'
 }
@@ -327,18 +327,18 @@ modified_zscores() {
 # run <commands>...
 run() {
 	case ${OUTPUT} in
-	null )
-		eval -- "$*" <&- &>/dev/null
-	;;
-	pipe )
-		eval -- "$*" <&- 2>/dev/null | cat >/dev/null
-	;;
-	inherit )
-		eval -- "$*" <&- 1>&3- 2>&4-
-	;;
-	* )
-		eval -- "$*" <&- &>>"$OUTPUT"
-	;;
+		null)
+			eval -- "$*" <&- &>/dev/null
+			;;
+		pipe)
+			eval -- "$*" <&- 2>/dev/null | cat >/dev/null
+			;;
+		inherit)
+			eval -- "$*" <&- 1>&3- 2>&4-
+			;;
+		*)
+			eval -- "$*" <&- &>>"$OUTPUT"
+			;;
 	esac
 }
 
@@ -348,8 +348,8 @@ prepare() {
 	if [[ ${#PREPARE[*]} -gt 0 ]]; then
 		{ run "${PREPARE[${#PREPARE[*]} > 1 ? $1 : 0]}"; } 3>&1 4>&2
 		E=$?
-		if (( E )); then
-			if [[ -n "$INTERACTIVE" ]]; then
+		if ((E)); then
+			if [[ -n $INTERACTIVE ]]; then
 				echo -e -n '\e]9;4;2;\e\\\e[K'
 			fi
 			error "The preparation command terminated with a non-zero exit code: $E. Append ' || true' to the command if you are sure that this can be ignored."
@@ -361,26 +361,29 @@ prepare() {
 # bench <commands index>
 bench() {
 	local array
-	
+
 	prepare "$i"
-	
-	{ output=$(TIMEFORMAT='%R %U %S'; { time run "${COMMANDS[$1]}"; } 2>&1); } 3>&1 4>&2
+
+	{ output=$(
+		TIMEFORMAT='%R %U %S'
+		{ time run "${COMMANDS[$1]}"; } 2>&1
+	); } 3>&1 4>&2
 	E=$?
-	if (( E )); then
-		if [[ -z "$FAILURE" ]]; then
-			if [[ -n "$INTERACTIVE" ]]; then
+	if ((E)); then
+		if [[ -z $FAILURE ]]; then
+			if [[ -n $INTERACTIVE ]]; then
 				echo -e -n '\e]9;4;2;\e\\\e[K'
 			fi
 			error "Command terminated with non-zero exit code: $E. Use the '-i' ignore-failure option if you want to ignore this. Alternatively, use the '-o' output option to debug what went wrong. Output: $(echo "$output" | head -n -1)"
 		fi
 		((++ERRORS))
 	fi
-	
-	array=( $output )
-	ELAPSED+=( "${array[0]}" )
-	USER+=( "${array[1]}" )
-	SYSTEM+=( "${array[2]}" )
-	EXIT_CODES+=( "$E" )
+
+	array=($output)
+	ELAPSED+=("${array[0]}")
+	USER+=("${array[1]}")
+	SYSTEM+=("${array[2]}")
+	EXIT_CODES+=("$E")
 }
 
 RE='^[0-9]+$'
@@ -399,38 +402,38 @@ if [[ ${#NAMES[*]} -gt ${#COMMANDS[*]} ]]; then
 	exit 1
 fi
 
-NAMES+=( "${COMMANDS[@]:${#NAMES[*]}}" )
+NAMES+=("${COMMANDS[@]:${#NAMES[*]}}")
 
-if [[ -n "$MINRUNS" && ! $MINRUNS =~ $RE ]]; then
+if [[ -n $MINRUNS && ! $MINRUNS =~ $RE ]]; then
 	echo "Usage: The minimum number of runs must be a number" >&2
 	exit 1
 fi
-if [[ -n "$MAXRUNS" && ! $MAXRUNS =~ $RE ]]; then
+if [[ -n $MAXRUNS && ! $MAXRUNS =~ $RE ]]; then
 	echo "Usage: The maximum number of runs must be a number" >&2
 	exit 1
 fi
 
-if [[ -n "$RUNS" ]]; then
+if [[ -n $RUNS ]]; then
 	if ! [[ $RUNS =~ $RE ]]; then
 		echo "Usage: The number of runs must be a number" >&2
 		exit 1
 	fi
-	
+
 	MINRUNS=$RUNS
 	MAXRUNS=$RUNS
 fi
 
-if [[ -n "$MINRUNS" && $MINRUNS -lt 2 ]] || [[ -n "$MAXRUNS" && $MAXRUNS -lt 2 ]]; then
+if [[ -n $MINRUNS && $MINRUNS -lt 2 ]] || [[ -n $MAXRUNS && $MAXRUNS -lt 2 ]]; then
 	echo "Error: Number of runs below two." >&2
 	exit 1
 fi
 
-if [[ -n "$MAXRUNS" ]]; then
-	if [[ -z "$MINRUNS" && $MAXRUNS -lt $MIN ]]; then
+if [[ -n $MAXRUNS ]]; then
+	if [[ -z $MINRUNS && $MAXRUNS -lt $MIN ]]; then
 		MINRUNS=$MAXRUNS
 	fi
-		
-	if [[ -n "$MINRUNS" && $MINRUNS -gt $MAXRUNS ]]; then
+
+	if [[ -n $MINRUNS && $MINRUNS -gt $MAXRUNS ]]; then
 		echo "Error: The minimum number of runs must be greater then or equal to the maximum number of runs." >&2
 		exit 1
 	fi
@@ -438,46 +441,46 @@ fi
 
 MINRUNS=${MINRUNS:-$MIN}
 
-if [[ -n "$CSV" ]]; then
-	if [[ "$CSV" == - ]]; then
+if [[ -n $CSV ]]; then
+	if [[ $CSV == - ]]; then
 		CSV=/dev/stdout
-	elif [[ -e "$CSV" ]]; then
+	elif [[ -e $CSV ]]; then
 		echo "Error: File '$CSV' already exists." >&2
 		exit 1
 	fi
 fi
-if [[ -n "$JSON" ]]; then
-	if [[ "$JSON" == - ]]; then
+if [[ -n $JSON ]]; then
+	if [[ $JSON == - ]]; then
 		JSON=/dev/stdout
-	elif [[ -e "$JSON" ]]; then
+	elif [[ -e $JSON ]]; then
 		echo "Error: File '$JSON' already exists." >&2
 		exit 1
 	fi
 fi
 
-if [[ -n "$CSV" ]]; then
+if [[ -n $CSV ]]; then
 	# echo 'command,mean,stddev,median,user,system,min,max' > "$CSV"
-	echo 'Command,Mean (s),Std Dev (s),Median (s),Mean User (s),Mean System (s),Min (s),Max (s)' > "$CSV"
+	echo 'Command,Mean (s),Std Dev (s),Median (s),Mean User (s),Mean System (s),Min (s),Max (s)' >"$CSV"
 fi
-if [[ -n "$JSON" ]]; then
+if [[ -n $JSON ]]; then
 	echo -n '{
-  "results": [' > "$JSON"
+  "results": [' >"$JSON"
 fi
 
 case ${OUTPUT} in
-null )
-;;
-pipe )
-;;
-inherit )
-	INTERACTIVE=''
-;;
-* )
-	if [[ -e "$OUTPUT" ]]; then
-		echo "Error: File '$OUTPUT' already exists." >&2
-		exit 1
-	fi
-;;
+	null) ;;
+
+	pipe) ;;
+
+	inherit)
+		INTERACTIVE=''
+		;;
+	*)
+		if [[ -e $OUTPUT ]]; then
+			echo "Error: File '$OUTPUT' already exists." >&2
+			exit 1
+		fi
+		;;
 esac
 
 MEAN=()
@@ -491,107 +494,107 @@ for i in "${!COMMANDS[@]}"; do
 	# System times
 	SYSTEM=()
 	EXIT_CODES=()
-	
+
 	ERRORS=0
-	
+
 	RUNS=$MINRUNS
-	
-	printf "${BOLD}Benchmark #%'d${NC}: %s\n" $((i+1)) "${NAMES[i]}"
-	
-	if [[ -n "$SETUP" ]]; then
+
+	printf "${BOLD}Benchmark #%'d${NC}: %s\n" $((i + 1)) "${NAMES[i]}"
+
+	if [[ -n $SETUP ]]; then
 		{ run "$SETUP"; } 3>&1 4>&2
 		E=$?
-		if (( E )); then
+		if ((E)); then
 			error "The setup command terminated with a non-zero exit code: $E. Append ' || true' to the command if you are sure that this can be ignored."
 		fi
 	fi
-	
+
 	if [[ $WARMUP -gt 0 ]]; then
-		if [[ -n "$INTERACTIVE" ]]; then
+		if [[ -n $INTERACTIVE ]]; then
 			bar 0 "Performing warmup runs"
-			
-			percentages=( $(for (( j = 0; j <= WARMUP; ++j )); do echo "$j"; done | awk '{ printf "%.15g\n", $1 / '"$WARMUP"' * 100 }') )
+
+			percentages=($(for ((j = 0; j <= WARMUP; ++j)); do echo "$j"; done | awk '{ printf "%.15g\n", $1 / '"$WARMUP"' * 100 }'))
 		fi
-	
+
 		for ((j = 0; j < WARMUP; ++j)); do
 			prepare "$i"
-			
+
 			{ run "${COMMANDS[i]}"; } 3>&1 4>&2
 			E=$?
-			if (( E )) && [[ -z "$FAILURE" ]]; then
-				if [[ -n "$INTERACTIVE" ]]; then
+			if ((E)) && [[ -z $FAILURE ]]; then
+				if [[ -n $INTERACTIVE ]]; then
 					echo -e -n '\e]9;4;2;\e\\\e[K'
 				fi
 				error "Command terminated with non-zero exit code: $E. Use the '-i' ignore-failure option if you want to ignore this."
 			fi
-			
-			((k=j+1))
-			if [[ -n "$INTERACTIVE" ]] && [[ $WARMUP -le 20 || $(( k % (WARMUP / MIN) )) -eq 0 || $k -eq $WARMUP ]]; then
+
+			((k = j + 1))
+			if [[ -n $INTERACTIVE ]] && [[ $WARMUP -le 20 || $((k % (WARMUP / MIN))) -eq 0 || $k -eq $WARMUP ]]; then
 				bar "${percentages[k]}" "$(printf "Performing warmup run %'d/%'d" "$k" "$WARMUP")"
 			fi
 		done
 	fi
-	
-	if [[ -n "$INTERACTIVE" ]]; then
+
+	if [[ -n $INTERACTIVE ]]; then
 		bar 0 "Initial time measurement"
 	fi
-	
+
 	bench "$i"
-	
+
 	runs=$(echo "$MINTIME ${ELAPSED[0]}" | awk '{ printf "%d", $1 / $2 }')
-	
+
 	if [[ $runs -gt $MINRUNS ]]; then
-		if [[ -n "$MAXRUNS" && $runs -gt $MAXRUNS ]]; then
+		if [[ -n $MAXRUNS && $runs -gt $MAXRUNS ]]; then
 			RUNS=$MAXRUNS
 		else
 			RUNS=$runs
 		fi
 	fi
-	
-	if [[ -n "$INTERACTIVE" ]]; then
-		percentages=( $(for (( j = 0; j <= RUNS; ++j )); do echo "$j"; done | awk '{ printf "%.15g\n", $1 / '"$RUNS"' * 100 }') )
+
+	if [[ -n $INTERACTIVE ]]; then
+		percentages=($(for ((j = 0; j <= RUNS; ++j)); do echo "$j"; done | awk '{ printf "%.15g\n", $1 / '"$RUNS"' * 100 }'))
 		bar "${percentages[1]}" "$(printf "Run %'d/%'d, estimate: ${GREEN}%'.3fs${NC}" 1 "$RUNS" "${ELAPSED[0]/./$decimal_point}")"
 	fi
-	
+
 	for ((j = 1; j < RUNS; ++j)); do
 		bench "$i"
-		
-		((k=j+1))
-		if [[ -n "$INTERACTIVE" ]] && [[ $RUNS -le 20 || $(( k % (RUNS / MIN) )) -eq 0 || $k -eq $RUNS ]]; then
+
+		((k = j + 1))
+		if [[ -n $INTERACTIVE ]] && [[ $RUNS -le 20 || $((k % (RUNS / MIN))) -eq 0 || $k -eq $RUNS ]]; then
 			amean=$(mean "${ELAPSED[@]}")
 			bar "${percentages[k]}" "$(printf "Run %'d/%'d, estimate: ${GREEN}%'.3fs${NC}" "$k" "$RUNS" "${amean/./$decimal_point}")"
 		fi
 		# echo "${ELAPSED[j]}"
 	done
-	
-	if [[ -n "$INTERACTIVE" ]]; then
+
+	if [[ -n $INTERACTIVE ]]; then
 		echo -e -n '\e]9;4;0;\e\\\e[K'
 	fi
-	
-	if [[ -n "$CLEANUP" ]]; then
+
+	if [[ -n $CLEANUP ]]; then
 		{ run "$CLEANUP"; } 3>&1 4>&2
 		E=$?
-		if (( E )); then
+		if ((E)); then
 			error "The cleanup command terminated with a non-zero exit code: $E. Append ' || true' to the command if you are sure that this can be ignored."
 		fi
 	fi
 
-	array=( $(calc "${ELAPSED[@]}") )
+	array=($(calc "${ELAPSED[@]}"))
 	amean=${array[0]}
-	MEAN+=( "$amean" )
+	MEAN+=("$amean")
 	stddiv=${array[1]}
-	STDDIV+=( "$stddiv" )
+	STDDIV+=("$stddiv")
 	amedian=${array[2]}
 	min=${array[3]}
 	max=${array[4]}
 
 	usermean=$(mean "${USER[@]}")
 	systemmean=$(mean "${SYSTEM[@]}")
-	
+
 	# CPU used
 	cpu=$(echo "$amean $usermean $systemmean" | awk '{ printf "%.15g\n", ($2 + $3) / $1 * 100 }')
-	
-	if [[ -z "$UNICODE" ]]; then
+
+	if [[ -z $UNICODE ]]; then
 		printf "  Time (${GREEN}${BOLD}mean${NC} +- ${GREEN}${DIM}std dev${NC}):          ${GREEN}${BOLD}%'7.4fs${NC} +- ${GREEN}${DIM}%'7.4fs${NC}             [User: ${BLUE}%'.4fs${NC}, System: ${BLUE}%'.4fs${NC}]\n" "${amean/./$decimal_point}" "${stddiv/./$decimal_point}" "${usermean/./$decimal_point}" "${systemmean/./$decimal_point}"
 		printf "  Range (${CYAN}min${NC} ... ${GREEN}median${NC} ... ${MAGENTA}max${NC}):  ${CYAN}%'6.3fs${NC} ... ${GREEN}%'6.3fs${NC} ... ${MAGENTA}%'6.3fs${NC}   CPU: %'5.1f%%, ${DIM}%'d runs${NC}\n" "${min/./$decimal_point}" "${amedian/./$decimal_point}" "${max/./$decimal_point}" "${cpu/./$decimal_point}" "$RUNS"
 	else
@@ -599,12 +602,12 @@ for i in "${!COMMANDS[@]}"; do
 		printf "  Range (${CYAN}min${NC} … ${GREEN}median${NC} … ${MAGENTA}max${NC}):  ${CYAN}%'6.3fs${NC} … ${GREEN}%'6.3fs${NC} … ${MAGENTA}%'6.3fs${NC}   CPU: %'5.1f%%, ${DIM}%'d runs${NC}\n" "${min/./$decimal_point}" "${amedian/./$decimal_point}" "${max/./$decimal_point}" "${cpu/./$decimal_point}" "$RUNS"
 	fi
 
-	if [[ -n "$CSV" ]]; then
-		printf '%s,%s,%s,%s,%s,%s,%s,%s\n' "${NAMES[i]}" "$amean" "$stddiv" "$amedian" "$usermean" "$systemmean" "$min" "$max" >> "$CSV"
+	if [[ -n $CSV ]]; then
+		printf '%s,%s,%s,%s,%s,%s,%s,%s\n' "${NAMES[i]}" "$amean" "$stddiv" "$amedian" "$usermean" "$systemmean" "$min" "$max" >>"$CSV"
 	fi
-	if [[ -n "$JSON" ]]; then
+	if [[ -n $JSON ]]; then
 		{
-			if (( i )); then
+			if ((i)); then
 				printf ','
 			fi
 			printf '
@@ -626,21 +629,21 @@ for i in "${!COMMANDS[@]}"; do
 			printf '        %s
       ]
     }' "${EXIT_CODES[@]: -1}"
-		} >> "$JSON"
+		} >>"$JSON"
 	fi
-	
+
 	echo
-  
-	if (( output=$(printf '%s\n' "${ELAPSED[@]}" | awk '$1<'"$MINEXECUTIONTIME"' { ++t } END { printf "%d", t }') )); then
+
+	if ((output = $(printf '%s\n' "${ELAPSED[@]}" | awk '$1<'"$MINEXECUTIONTIME"' { ++t } END { printf "%d", t }'))); then
 		warning "$output run(s) of this command took less than $MINEXECUTIONTIME seconds to complete. Results might be inaccurate."
 	fi
-	
+
 	if [[ $ERRORS -gt 0 ]]; then
 		warning "Ignoring $ERRORS non-zero exit code(s)."
 	fi
-	
-	scores=( $(modified_zscores "${ELAPSED[@]}") )
-	if (( $(echo "${scores[0]} $OUTLIERTHRESHOLD" | awk '{ print ($1>$2) }') )); then
+
+	scores=($(modified_zscores "${ELAPSED[@]}"))
+	if (($(echo "${scores[0]} $OUTLIERTHRESHOLD" | awk '{ print ($1>$2) }'))); then
 		text="The first benchmarking run for this command was significantly slower than the rest (${ELAPSED[0]}s). This could be caused by (filesystem) caches that were not filled until after the first run. "
 		if [[ $WARMUP -gt 0 && ${#PREPARE[*]} -gt 0 ]]; then
 			text+="You are already using both the warmup option as well as the prepare option. Consider re-running the benchmark on a quiet system. Maybe it was a random outlier. Alternatively, consider increasing the warmup count."
@@ -652,7 +655,7 @@ for i in "${!COMMANDS[@]}"; do
 			text+="You should consider using the warmup option to fill those caches before the actual benchmark. Alternatively, use the prepare option to clear the caches before each timing run."
 		fi
 		warning "$text"
-	elif (( output=$(printf '%s\n' "${scores[@]}" | awk 'function abs(x) { return x<0 ? -x : x } abs($1)>'"$OUTLIERTHRESHOLD"' { ++t } END { printf "%d", t }') )); then
+	elif ((output = $(printf '%s\n' "${scores[@]}" | awk 'function abs(x) { return x<0 ? -x : x } abs($1)>'"$OUTLIERTHRESHOLD"' { ++t } END { printf "%d", t }'))); then
 		text="$output statistical outlier(s) were detected (> $OUTLIERTHRESHOLD modified Z-scores or about 10${UNICODE:+σ} std devs). Consider re-running this benchmark on a quiet system without any interferences from other programs."
 		if [[ $WARMUP -eq 0 && ${#PREPARE[*]} -eq 0 ]]; then
 			text+=" It might help to use the warmup or prepare options."
@@ -662,37 +665,37 @@ for i in "${!COMMANDS[@]}"; do
 	# printf '%s\n' "${scores[@]}"
 done
 
-if [[ -n "$JSON" ]]; then
+if [[ -n $JSON ]]; then
 	echo '
   ]
-}' >> "$JSON"
+}' >>"$JSON"
 fi
 
 if [[ ${#MEAN[*]} -gt 1 ]]; then
 	MIN=${MEAN[0]}
 	fastest=0
 	for i in "${!MEAN[@]}"; do
-		if (( $(echo "${MEAN[i]} $MIN" | awk '{ print ($1<$2) }') )); then
+		if (($(echo "${MEAN[i]} $MIN" | awk '{ print ($1<$2) }'))); then
 			MIN=${MEAN[i]}
 			fastest=$i
 		fi
 	done
-	
+
 	echo -e "${BOLD}Summary${NC}"
-	if [[ -z "$UNICODE" ]]; then
-		printf "  #%'d '${CYAN}%s${NC}' ran\n" $((fastest+1)) "${NAMES[fastest]}"
+	if [[ -z $UNICODE ]]; then
+		printf "  #%'d '${CYAN}%s${NC}' ran\n" $((fastest + 1)) "${NAMES[fastest]}"
 	else
-		printf "  #%'d ‘${CYAN}%s${NC}’ ran\n" $((fastest+1)) "${NAMES[fastest]}"
+		printf "  #%'d ‘${CYAN}%s${NC}’ ran\n" $((fastest + 1)) "${NAMES[fastest]}"
 	fi
-	
+
 	for i in "${!MEAN[@]}"; do
 		if [[ $i -ne $fastest ]]; then
-			array=( $(ratio_stddev "${MEAN[i]}" "${STDDIV[i]}" "${MEAN[fastest]}" "${STDDIV[fastest]}") )
-			
-			if [[ -z "$UNICODE" ]]; then
-				printf "${GREEN}${BOLD}%'9.3f${NC} +- ${GREEN}%'.3f${NC} times (%'.1f%%) faster than #%'d '${MAGENTA}%s${NC}'\n" "${array[0]/./$decimal_point}" "${array[1]/./$decimal_point}" "${array[2]/./$decimal_point}" $((i+1)) "${NAMES[i]}"
+			array=($(ratio_stddev "${MEAN[i]}" "${STDDIV[i]}" "${MEAN[fastest]}" "${STDDIV[fastest]}"))
+
+			if [[ -z $UNICODE ]]; then
+				printf "${GREEN}${BOLD}%'9.3f${NC} +- ${GREEN}%'.3f${NC} times (%'.1f%%) faster than #%'d '${MAGENTA}%s${NC}'\n" "${array[0]/./$decimal_point}" "${array[1]/./$decimal_point}" "${array[2]/./$decimal_point}" $((i + 1)) "${NAMES[i]}"
 			else
-				printf "${GREEN}${BOLD}%'9.3f${NC} ± ${GREEN}%'.3f${NC} times (%'.1f%%) faster than #%'d ‘${MAGENTA}%s${NC}’\n" "${array[0]/./$decimal_point}" "${array[1]/./$decimal_point}" "${array[2]/./$decimal_point}" $((i+1)) "${NAMES[i]}"
+				printf "${GREEN}${BOLD}%'9.3f${NC} ± ${GREEN}%'.3f${NC} times (%'.1f%%) faster than #%'d ‘${MAGENTA}%s${NC}’\n" "${array[0]/./$decimal_point}" "${array[1]/./$decimal_point}" "${array[2]/./$decimal_point}" $((i + 1)) "${NAMES[i]}"
 			fi
 		fi
 	done
