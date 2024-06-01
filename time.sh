@@ -76,7 +76,7 @@ DIM='\e[2m'
 NC='\e[m' # No Color
 
 # Check if on Linux
-if ! echo "$OSTYPE" | grep -iq "linux"; then
+if ! echo "$OSTYPE" | grep -iq '^linux'; then
 	echo "Error: This script must be run on Linux." >&2
 	exit 1
 fi
@@ -345,12 +345,12 @@ run() {
 # Run preparation command
 # prepare <commands index>
 prepare() {
-	if [[ ${#PREPARE[*]} -gt 0 ]]; then
+	if ((${#PREPARE[*]})); then
 		{ run "${PREPARE[${#PREPARE[*]} > 1 ? $1 : 0]}"; } 3>&1 4>&2
 		E=$?
 		if ((E)); then
 			if [[ -n $INTERACTIVE ]]; then
-				echo -e -n '\e]9;4;2;\e\\\e[K'
+				printf '\e]9;4;2;\e\\\e[K'
 			fi
 			error "The preparation command terminated with a non-zero exit code: $E. Append ' || true' to the command if you are sure that this can be ignored."
 		fi
@@ -372,7 +372,7 @@ bench() {
 	if ((E)); then
 		if [[ -z $FAILURE ]]; then
 			if [[ -n $INTERACTIVE ]]; then
-				echo -e -n '\e]9;4;2;\e\\\e[K'
+				printf '\e]9;4;2;\e\\\e[K'
 			fi
 			error "Command terminated with non-zero exit code: $E. Use the '-i' ignore-failure option if you want to ignore this. Alternatively, use the '-o' output option to debug what went wrong. Output: $(echo "$output" | head -n -1)"
 		fi
@@ -523,7 +523,7 @@ for i in "${!COMMANDS[@]}"; do
 			E=$?
 			if ((E)) && [[ -z $FAILURE ]]; then
 				if [[ -n $INTERACTIVE ]]; then
-					echo -e -n '\e]9;4;2;\e\\\e[K'
+					printf '\e]9;4;2;\e\\\e[K'
 				fi
 				error "Command terminated with non-zero exit code: $E. Use the '-i' ignore-failure option if you want to ignore this."
 			fi
@@ -568,7 +568,7 @@ for i in "${!COMMANDS[@]}"; do
 	done
 
 	if [[ -n $INTERACTIVE ]]; then
-		echo -e -n '\e]9;4;0;\e\\\e[K'
+		printf '\e]9;4;0;\e\\\e[K'
 	fi
 
 	if [[ -n $CLEANUP ]]; then
@@ -645,11 +645,11 @@ for i in "${!COMMANDS[@]}"; do
 	scores=($(modified_zscores "${ELAPSED[@]}"))
 	if (($(echo "${scores[0]} $OUTLIERTHRESHOLD" | awk '{ print ($1>$2) }'))); then
 		text="The first benchmarking run for this command was significantly slower than the rest (${ELAPSED[0]}s). This could be caused by (filesystem) caches that were not filled until after the first run. "
-		if [[ $WARMUP -gt 0 && ${#PREPARE[*]} -gt 0 ]]; then
+		if [[ $WARMUP -gt 0 ]] && ((${#PREPARE[*]})); then
 			text+="You are already using both the warmup option as well as the prepare option. Consider re-running the benchmark on a quiet system. Maybe it was a random outlier. Alternatively, consider increasing the warmup count."
 		elif [[ $WARMUP -gt 0 ]]; then
 			text+="You are already using the warmup option which helps to fill these caches before the actual benchmark. You can either try to increase the warmup count further or re-run this benchmark on a quiet system in case it was a random outlier. Alternatively, consider using the prepare option to clear the caches before each timing run."
-		elif [[ ${#PREPARE[*]} -gt 0 ]]; then
+		elif ((${#PREPARE[*]})); then
 			text+="You are already using the prepare option which can be used to clear caches. If you did not use a cache-clearing command with prepare, you can either try that or consider using the warmup option to fill those caches before the actual benchmark."
 		else
 			text+="You should consider using the warmup option to fill those caches before the actual benchmark. Alternatively, use the prepare option to clear the caches before each timing run."
