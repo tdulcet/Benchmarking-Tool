@@ -34,6 +34,10 @@ SETUP=''
 PREPARE=(
 
 )
+# Conclude command(s) to execute after each run
+CONCLUDE=(
+
+)
 # Cleanup command to execute after all runs for each command
 CLEANUP=''
 
@@ -49,6 +53,8 @@ CLEANUP=''
 
 # Use Unicode characters in output
 UNICODE=1
+# Use color in output
+COLOR=1
 # Interactive output
 INTERACTIVE=1
 # Output where (null, pipe, inherit, <FILE>)
@@ -65,18 +71,8 @@ OUTLIERTHRESHOLD=14.826 # 1.4826 * 10.0
 
 # Do not change anything below this
 
-RED='\e[31m'
-GREEN='\e[32m'
-YELLOW='\e[33m'
-BLUE='\e[34m'
-MAGENTA='\e[35m'
-CYAN='\e[36m'
-BOLD='\e[1m'
-DIM='\e[2m'
-NC='\e[m' # No Color
-
 # Check if on Linux
-if ! echo "$OSTYPE" | grep -iq '^linux'; then
+if [[ $OSTYPE != linux* ]]; then
 	echo "Error: This script must be run on Linux." >&2
 	exit 1
 fi
@@ -101,12 +97,16 @@ Options:
                         Execute command before each set of runs. This is useful for compiling your software with the provided parameters, or to do any other work that should happen once before a series of benchmark runs, not every time as would happen with the prepare option.
     -p <command>    Prepare
                         Execute command before each run. This is useful for clearing disk caches, for example. The prepare option can be specified once for all commands or multiple times, once for each command. In the latter case, each preparation command will be run prior to the corresponding benchmark command.
+    -f <command>    Conclude
+                        Execute command after each timing run. This is useful for killing long-running processes started (e.g. a web server started in prepare), for example. The conclude option can be specified once for all commands or multiple times, once for each command. In the latter case, each conclude command will be run after the corresponding benchmark command.
     -c <command>    Cleanup
                         Execute command after the completion of all benchmarking runs for each individual command to be benchmarked. This is useful if the commands to be benchmarked produce artifacts that need to be cleaned up.
     -i              Ignore-failure
                         Ignore non-zero exit codes of the benchmarked programs.
     -u              ASCII
                         Do not use Unicode characters in output.
+    -N              No color
+                        Do not use color in output.
     -S              Disable interactive
                         Disable interactive output and progress bars.
     -C <FILE>       Export CSV
@@ -156,10 +156,17 @@ if [[ $# -eq 0 ]]; then
 	exit 1
 fi
 
-while getopts "c:hij:m:n:o:p:r:s:uvw:C:SM:" c; do
+if [[ -n $NO_COLOR ]]; then
+	COLOR=''
+fi
+
+while getopts "c:f:hij:m:n:o:p:r:s:uvw:C:SM:N" c; do
 	case ${c} in
 		c)
 			CLEANUP=$OPTARG
+			;;
+		f)
+			CONCLUDE+=("$OPTARG")
 			;;
 		h)
 			usage "$0"
@@ -208,6 +215,9 @@ while getopts "c:hij:m:n:o:p:r:s:uvw:C:SM:" c; do
 		M)
 			MAXRUNS=$OPTARG
 			;;
+		N)
+			COLOR=''
+			;;
 		\?)
 			echo -e "Try '$0 -h' for more information.\n" >&2
 			exit 1
@@ -219,6 +229,22 @@ shift $((OPTIND - 1))
 if [[ $# -eq 0 ]]; then
 	usage "$0"
 	exit 1
+fi
+
+if [[ -n $FORCE_COLOR ]]; then
+	COLOR=1
+fi
+
+if [[ -n $COLOR ]]; then
+	RED='\e[31m'
+	GREEN='\e[32m'
+	YELLOW='\e[33m'
+	BLUE='\e[34m'
+	MAGENTA='\e[35m'
+	CYAN='\e[36m'
+	BOLD='\e[1m'
+	DIM='\e[2m'
+	RESET_ALL='\e[m'
 fi
 
 decimal_point=$(locale decimal_point)
@@ -233,13 +259,13 @@ fi
 
 # error <message>
 error() {
-	printf "${RED}Error${NC}: %s\n" "$1" >&2
+	printf "${RED}Error${RESET_ALL}: %s\n" "$1" >&2
 	exit 1
 }
 
 # warning <message>
 warning() {
-	printf "${YELLOW}Warning${NC}: %s\n\n" "$1"
+	printf "${YELLOW}Warning${RESET_ALL}: %s\n\n" "$1"
 }
 
 # Progress bar
@@ -248,8 +274,12 @@ warning() {
 bar() {
 	local text length label abar_length usage prog total
 	WIDTH=${COLUMNS:-$(tput cols)}
-	# https://stackoverflow.com/a/30938702
-	text=$(echo "${2}" | sed 's/'$'\x1B''\[\([0-9]\+\(;[0-9]\+\)*\)\?m//g')
+	if [[ -n $COLOR ]]; then
+		# https://stackoverflow.com/a/30938702
+		text=$(echo "${2}" | sed 's/'$'\x1B''\[\([0-9]\+\(;[0-9]\+\)*\)\?m//g')
+	else
+		text=$2
+	fi
 	((length = 33 + ${#2} - ${#text}))
 
 	printf '\e]9;4;1;%.0f\e\\' "${1/./$decimal_point}"
@@ -270,7 +300,7 @@ bar() {
 		fi
 
 		output="${prog// /|}${total}${label}"
-		printf "\e[K%-*s [${3}%s${3:+${NC}}%s]\r" "$length" "${2}" "${output::usage}" "${output:usage}"
+		printf "\e[K%-*s [${3}%s${3:+${RESET_ALL}}%s]\r" "$length" "${2}" "${output::usage}" "${output:usage}"
 	else
 		label="$(printf "%5.1f" "${1/./$decimal_point}")%"
 		abar_length=${bar_length:-$((WIDTH < 50 ? 10 : WIDTH - 43))}
@@ -282,7 +312,7 @@ bar() {
 		printf -v total "%$(((abar_length - usage) / 8))s"
 
 		blocks=("" "▏" "▎" "▍" "▌" "▋" "▊" "▉")
-		printf "\e[K%-*s %s [${3}${prog// /█}${blocks[usage % 8]}${3:+${NC}}${total}]\r" "$length" "${2}" "${label}"
+		printf "\e[K%-*s %s [${3}${prog// /█}${blocks[usage % 8]}${3:+${RESET_ALL}}${total}]\r" "$length" "${2}" "${label}"
 	fi
 }
 
@@ -352,7 +382,22 @@ prepare() {
 			if [[ -n $INTERACTIVE ]]; then
 				printf '\e]9;4;2;\e\\\e[K'
 			fi
-			error "The preparation command terminated with a non-zero exit code: $E. Append ' || true' to the command if you are sure that this can be ignored."
+			error "The preparation command terminated with a non-zero exit code $E. Append ' || true' to the command if you are sure that this can be ignored."
+		fi
+	fi
+}
+
+# Run conclusion command
+# conclude <commands index>
+conclude() {
+	if ((${#CONCLUDE[*]})); then
+		{ run "${CONCLUDE[${#CONCLUDE[*]} > 1 ? $1 : 0]}"; } 3>&1 4>&2
+		E=$?
+		if ((E)); then
+			if [[ -n $INTERACTIVE ]]; then
+				printf '\e]9;4;2;\e\\\e[K'
+			fi
+			error "The conclusion command terminated with a non-zero exit code $E. Append ' || true' to the command if you are sure that this can be ignored."
 		fi
 	fi
 }
@@ -374,7 +419,7 @@ bench() {
 			if [[ -n $INTERACTIVE ]]; then
 				printf '\e]9;4;2;\e\\\e[K'
 			fi
-			error "Command terminated with non-zero exit code: $E. Use the '-i' ignore-failure option if you want to ignore this. Alternatively, use the '-o' output option to debug what went wrong. Output: $(echo "$output" | head -n -1)"
+			error "Command terminated with non-zero exit code $E in benchmark iteration $i. Use the '-i' ignore-failure option if you want to ignore this. Alternatively, use the '-o' output option to debug what went wrong. Output: $(echo "$output" | head -n -1)"
 		fi
 		((++ERRORS))
 	fi
@@ -384,6 +429,17 @@ bench() {
 	USER+=("${array[1]}")
 	SYSTEM+=("${array[2]}")
 	EXIT_CODES+=("$E")
+
+	conclude "$i"
+}
+
+# cleanup
+cleanup() {
+	if [[ -n $JSON ]]; then
+		echo '
+  ]
+}' >>"$JSON"
+	fi
 }
 
 RE='^[0-9]+$'
@@ -394,6 +450,11 @@ fi
 
 if [[ ${#PREPARE[*]} -gt 1 && ${#COMMANDS[*]} -ne ${#PREPARE[*]} ]]; then
 	echo "Error: The prepare option has to be provided just once or N times, where N is the number of benchmark commands." >&2
+	exit 1
+fi
+
+if [[ ${#CONCLUDE[*]} -gt 1 && ${#COMMANDS[*]} -ne ${#CONCLUDE[*]} ]]; then
+	echo "Error: The conclude option has to be provided just once or N times, where N is the number of benchmark commands." >&2
 	exit 1
 fi
 
@@ -458,6 +519,7 @@ if [[ -n $JSON ]]; then
 	fi
 fi
 
+trap 'cleanup' EXIT
 if [[ -n $CSV ]]; then
 	# echo 'command,mean,stddev,median,user,system,min,max' > "$CSV"
 	echo 'Command,Mean (s),Std Dev (s),Median (s),Mean User (s),Mean System (s),Min (s),Max (s)' >"$CSV"
@@ -499,13 +561,13 @@ for i in "${!COMMANDS[@]}"; do
 
 	RUNS=$MINRUNS
 
-	printf "${BOLD}Benchmark #%'d${NC}: %s\n" $((i + 1)) "${NAMES[i]}"
+	printf "${BOLD}Benchmark #%'d${RESET_ALL}: %s\n" $((i + 1)) "${NAMES[i]}"
 
 	if [[ -n $SETUP ]]; then
 		{ run "$SETUP"; } 3>&1 4>&2
 		E=$?
 		if ((E)); then
-			error "The setup command terminated with a non-zero exit code: $E. Append ' || true' to the command if you are sure that this can be ignored."
+			error "The setup command terminated with a non-zero exit code $E. Append ' || true' to the command if you are sure that this can be ignored."
 		fi
 	fi
 
@@ -525,13 +587,15 @@ for i in "${!COMMANDS[@]}"; do
 				if [[ -n $INTERACTIVE ]]; then
 					printf '\e]9;4;2;\e\\\e[K'
 				fi
-				error "Command terminated with non-zero exit code: $E. Use the '-i' ignore-failure option if you want to ignore this."
+				error "Command terminated with non-zero exit code $E in warmup iteration $j. Use the '-i' ignore-failure option if you want to ignore this."
 			fi
 
 			((k = j + 1))
 			if [[ -n $INTERACTIVE ]] && [[ $WARMUP -le 20 || $((k % (WARMUP / MIN))) -eq 0 || $k -eq $WARMUP ]]; then
 				bar "${percentages[k]}" "$(printf "Performing warmup run %'d/%'d" "$k" "$WARMUP")"
 			fi
+
+			conclude "$i"
 		done
 	fi
 
@@ -553,7 +617,7 @@ for i in "${!COMMANDS[@]}"; do
 
 	if [[ -n $INTERACTIVE ]]; then
 		percentages=($(for ((j = 0; j <= RUNS; ++j)); do echo "$j"; done | awk '{ printf "%.15g\n", $1 / '"$RUNS"' * 100 }'))
-		bar "${percentages[1]}" "$(printf "Run %'d/%'d, estimate: ${GREEN}%'.3fs${NC}" 1 "$RUNS" "${ELAPSED[0]/./$decimal_point}")"
+		bar "${percentages[1]}" "$(printf "Run %'d/%'d, estimate: ${GREEN}%'.3fs${RESET_ALL}" 1 "$RUNS" "${ELAPSED[0]/./$decimal_point}")"
 	fi
 
 	for ((j = 1; j < RUNS; ++j)); do
@@ -562,7 +626,7 @@ for i in "${!COMMANDS[@]}"; do
 		((k = j + 1))
 		if [[ -n $INTERACTIVE ]] && [[ $RUNS -le 20 || $((k % (RUNS / MIN))) -eq 0 || $k -eq $RUNS ]]; then
 			amean=$(mean "${ELAPSED[@]}")
-			bar "${percentages[k]}" "$(printf "Run %'d/%'d, estimate: ${GREEN}%'.3fs${NC}" "$k" "$RUNS" "${amean/./$decimal_point}")"
+			bar "${percentages[k]}" "$(printf "Run %'d/%'d, estimate: ${GREEN}%'.3fs${RESET_ALL}" "$k" "$RUNS" "${amean/./$decimal_point}")"
 		fi
 		# echo "${ELAPSED[j]}"
 	done
@@ -575,7 +639,7 @@ for i in "${!COMMANDS[@]}"; do
 		{ run "$CLEANUP"; } 3>&1 4>&2
 		E=$?
 		if ((E)); then
-			error "The cleanup command terminated with a non-zero exit code: $E. Append ' || true' to the command if you are sure that this can be ignored."
+			error "The cleanup command terminated with a non-zero exit code $E. Append ' || true' to the command if you are sure that this can be ignored."
 		fi
 	fi
 
@@ -595,11 +659,11 @@ for i in "${!COMMANDS[@]}"; do
 	cpu=$(echo "$amean $usermean $systemmean" | awk '{ printf "%.15g\n", ($2 + $3) / $1 * 100 }')
 
 	if [[ -z $UNICODE ]]; then
-		printf "  Time (${GREEN}${BOLD}mean${NC} +- ${GREEN}${DIM}std dev${NC}):          ${GREEN}${BOLD}%'7.4fs${NC} +- ${GREEN}${DIM}%'7.4fs${NC}             [User: ${BLUE}%'.4fs${NC}, System: ${BLUE}%'.4fs${NC}]\n" "${amean/./$decimal_point}" "${stddiv/./$decimal_point}" "${usermean/./$decimal_point}" "${systemmean/./$decimal_point}"
-		printf "  Range (${CYAN}min${NC} ... ${GREEN}median${NC} ... ${MAGENTA}max${NC}):  ${CYAN}%'6.3fs${NC} ... ${GREEN}%'6.3fs${NC} ... ${MAGENTA}%'6.3fs${NC}   CPU: %'5.1f%%, ${DIM}%'d runs${NC}\n" "${min/./$decimal_point}" "${amedian/./$decimal_point}" "${max/./$decimal_point}" "${cpu/./$decimal_point}" "$RUNS"
+		printf "  Time (${GREEN}${BOLD}mean${RESET_ALL} +- ${GREEN}${DIM}std dev${RESET_ALL}):          ${GREEN}${BOLD}%'7.4fs${RESET_ALL} +- ${GREEN}${DIM}%'7.4fs${RESET_ALL}             [User: ${BLUE}%'.4fs${RESET_ALL}, System: ${BLUE}%'.4fs${RESET_ALL}]\n" "${amean/./$decimal_point}" "${stddiv/./$decimal_point}" "${usermean/./$decimal_point}" "${systemmean/./$decimal_point}"
+		printf "  Range (${CYAN}min${RESET_ALL} ... ${GREEN}median${RESET_ALL} ... ${MAGENTA}max${RESET_ALL}):  ${CYAN}%'6.3fs${RESET_ALL} ... ${GREEN}%'6.3fs${RESET_ALL} ... ${MAGENTA}%'6.3fs${RESET_ALL}   CPU: %'5.1f%%, ${DIM}%'d runs${RESET_ALL}\n" "${min/./$decimal_point}" "${amedian/./$decimal_point}" "${max/./$decimal_point}" "${cpu/./$decimal_point}" "$RUNS"
 	else
-		printf "  Time (${GREEN}${BOLD}mean${NC} ± ${GREEN}${DIM}σ std dev${NC}):     ${GREEN}${BOLD}%'7.4fs${NC} ± ${GREEN}${DIM}%'7.4fs${NC}          [User: ${BLUE}%'.4fs${NC}, System: ${BLUE}%'.4fs${NC}]\n" "${amean/./$decimal_point}" "${stddiv/./$decimal_point}" "${usermean/./$decimal_point}" "${systemmean/./$decimal_point}"
-		printf "  Range (${CYAN}min${NC} … ${GREEN}median${NC} … ${MAGENTA}max${NC}):  ${CYAN}%'6.3fs${NC} … ${GREEN}%'6.3fs${NC} … ${MAGENTA}%'6.3fs${NC}   CPU: %'5.1f%%, ${DIM}%'d runs${NC}\n" "${min/./$decimal_point}" "${amedian/./$decimal_point}" "${max/./$decimal_point}" "${cpu/./$decimal_point}" "$RUNS"
+		printf "  Time (${GREEN}${BOLD}mean${RESET_ALL} ± ${GREEN}${DIM}σ std dev${RESET_ALL}):     ${GREEN}${BOLD}%'7.4fs${RESET_ALL} ± ${GREEN}${DIM}%'7.4fs${RESET_ALL}          [User: ${BLUE}%'.4fs${RESET_ALL}, System: ${BLUE}%'.4fs${RESET_ALL}]\n" "${amean/./$decimal_point}" "${stddiv/./$decimal_point}" "${usermean/./$decimal_point}" "${systemmean/./$decimal_point}"
+		printf "  Range (${CYAN}min${RESET_ALL} … ${GREEN}median${RESET_ALL} … ${MAGENTA}max${RESET_ALL}):  ${CYAN}%'6.3fs${RESET_ALL} … ${GREEN}%'6.3fs${RESET_ALL} … ${MAGENTA}%'6.3fs${RESET_ALL}   CPU: %'5.1f%%, ${DIM}%'d runs${RESET_ALL}\n" "${min/./$decimal_point}" "${amedian/./$decimal_point}" "${max/./$decimal_point}" "${cpu/./$decimal_point}" "$RUNS"
 	fi
 
 	if [[ -n $CSV ]]; then
@@ -681,11 +745,11 @@ if [[ ${#MEAN[*]} -gt 1 ]]; then
 		fi
 	done
 
-	echo -e "${BOLD}Summary${NC}"
+	echo -e "${BOLD}Summary${RESET_ALL}"
 	if [[ -z $UNICODE ]]; then
-		printf "  #%'d '${CYAN}%s${NC}' ran\n" $((fastest + 1)) "${NAMES[fastest]}"
+		printf "  #%'d '${CYAN}%s${RESET_ALL}' ran\n" $((fastest + 1)) "${NAMES[fastest]}"
 	else
-		printf "  #%'d ‘${CYAN}%s${NC}’ ran\n" $((fastest + 1)) "${NAMES[fastest]}"
+		printf "  #%'d ‘${CYAN}%s${RESET_ALL}’ ran\n" $((fastest + 1)) "${NAMES[fastest]}"
 	fi
 
 	for i in "${!MEAN[@]}"; do
@@ -693,9 +757,9 @@ if [[ ${#MEAN[*]} -gt 1 ]]; then
 			array=($(ratio_stddev "${MEAN[i]}" "${STDDIV[i]}" "${MEAN[fastest]}" "${STDDIV[fastest]}"))
 
 			if [[ -z $UNICODE ]]; then
-				printf "${GREEN}${BOLD}%'9.3f${NC} +- ${GREEN}%'.3f${NC} times (%'.1f%%) faster than #%'d '${MAGENTA}%s${NC}'\n" "${array[0]/./$decimal_point}" "${array[1]/./$decimal_point}" "${array[2]/./$decimal_point}" $((i + 1)) "${NAMES[i]}"
+				printf "${GREEN}${BOLD}%'9.3f${RESET_ALL} +- ${GREEN}%'.3f${RESET_ALL} times (%'.1f%%) faster than #%'d '${MAGENTA}%s${RESET_ALL}'\n" "${array[0]/./$decimal_point}" "${array[1]/./$decimal_point}" "${array[2]/./$decimal_point}" $((i + 1)) "${NAMES[i]}"
 			else
-				printf "${GREEN}${BOLD}%'9.3f${NC} ± ${GREEN}%'.3f${NC} times (%'.1f%%) faster than #%'d ‘${MAGENTA}%s${NC}’\n" "${array[0]/./$decimal_point}" "${array[1]/./$decimal_point}" "${array[2]/./$decimal_point}" $((i + 1)) "${NAMES[i]}"
+				printf "${GREEN}${BOLD}%'9.3f${RESET_ALL} ± ${GREEN}%'.3f${RESET_ALL} times (%'.1f%%) faster than #%'d ‘${MAGENTA}%s${RESET_ALL}’\n" "${array[0]/./$decimal_point}" "${array[1]/./$decimal_point}" "${array[2]/./$decimal_point}" $((i + 1)) "${NAMES[i]}"
 			fi
 		fi
 	done

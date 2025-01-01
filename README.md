@@ -48,12 +48,16 @@ Options:
                         Execute command before each set of runs. This is useful for compiling your software with the provided parameters, or to do any other work that should happen once before a series of benchmark runs, not every time as would happen with the prepare option.
     -p <command>    Prepare
                         Execute command before each run. This is useful for clearing disk caches, for example. The prepare option can be specified once for all commands or multiple times, once for each command. In the latter case, each preparation command will be run prior to the corresponding benchmark command.
+    -f <command>    Conclude
+                        Execute command after each timing run. This is useful for killing long-running processes started (e.g. a web server started in prepare), for example. The conclude option can be specified once for all commands or multiple times, once for each command. In the latter case, each conclude command will be run after the corresponding benchmark command.
     -c <command>    Cleanup
                         Execute command after the completion of all benchmarking runs for each individual command to be benchmarked. This is useful if the commands to be benchmarked produce artifacts that need to be cleaned up.
     -i              Ignore-failure
                         Ignore non-zero exit codes of the benchmarked programs.
     -u              ASCII
                         Do not use Unicode characters in output.
+    -N              No color
+                        Do not use color in output.
     -S              Disable interactive
                         Disable interactive output and progress bars.
     -C <FILE>       Export CSV
@@ -103,7 +107,6 @@ Examples:
 Pull requests welcome! Ideas for contributions:
 
 * Support more of hyperfine's options
-	* Support disabling color output
 * Add option to use the GNU time command (`/usr/bin/time`)
 * Add more examples
 * Improve the performance
